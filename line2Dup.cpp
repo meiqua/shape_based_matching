@@ -6,434 +6,446 @@
 using namespace std;
 using namespace cv;
 
-namespace line2Dup {
+namespace line2Dup
+{
 /**
  * \brief Get the label [0,8) of the single bit set in quantized.
  */
 static inline int getLabel(int quantized)
 {
-  switch (quantized)
-  {
-    case 1:   return 0;
-    case 2:   return 1;
-    case 4:   return 2;
-    case 8:   return 3;
-    case 16:  return 4;
-    case 32:  return 5;
-    case 64:  return 6;
-    case 128: return 7;
+    switch (quantized)
+    {
+    case 1:
+        return 0;
+    case 2:
+        return 1;
+    case 4:
+        return 2;
+    case 8:
+        return 3;
+    case 16:
+        return 4;
+    case 32:
+        return 5;
+    case 64:
+        return 6;
+    case 128:
+        return 7;
     default:
-      CV_Error(Error::StsBadArg, "Invalid value of quantized parameter");
-      return -1; //avoid warning
-  }
-}
-
-void Feature::read(const FileNode& fn)
-{
-  FileNodeIterator fni = fn.begin();
-  fni >> x >> y >> label;
-}
-
-void Feature::write(FileStorage& fs) const
-{
-  fs << "[:" << x << y << label << "]";
-}
-
-void Template::read(const FileNode& fn)
-{
-  width = fn["width"];
-  height = fn["height"];
-  pyramid_level = fn["pyramid_level"];
-
-  FileNode features_fn = fn["features"];
-  features.resize(features_fn.size());
-  FileNodeIterator it = features_fn.begin(), it_end = features_fn.end();
-  for (int i = 0; it != it_end; ++it, ++i)
-  {
-    features[i].read(*it);
-  }
-}
-
-void Template::write(FileStorage& fs) const
-{
-  fs << "width" << width;
-  fs << "height" << height;
-  fs << "pyramid_level" << pyramid_level;
-
-  fs << "features" << "[";
-  for (int i = 0; i < (int)features.size(); ++i)
-  {
-    features[i].write(fs);
-  }
-  fs << "]"; // features
-}
-
-static Rect cropTemplates(std::vector<Template>& templates)
-{
-  int min_x = std::numeric_limits<int>::max();
-  int min_y = std::numeric_limits<int>::max();
-  int max_x = std::numeric_limits<int>::min();
-  int max_y = std::numeric_limits<int>::min();
-
-  // First pass: find min/max feature x,y over all pyramid levels and modalities
-  for (int i = 0; i < (int)templates.size(); ++i)
-  {
-    Template& templ = templates[i];
-
-    for (int j = 0; j < (int)templ.features.size(); ++j)
-    {
-      int x = templ.features[j].x << templ.pyramid_level;
-      int y = templ.features[j].y << templ.pyramid_level;
-      min_x = std::min(min_x, x);
-      min_y = std::min(min_y, y);
-      max_x = std::max(max_x, x);
-      max_y = std::max(max_y, y);
+        CV_Error(Error::StsBadArg, "Invalid value of quantized parameter");
+        return -1; //avoid warning
     }
-  }
-
-  /// @todo Why require even min_x, min_y?
-  if (min_x % 2 == 1) --min_x;
-  if (min_y % 2 == 1) --min_y;
-
-  // Second pass: set width/height and shift all feature positions
-  for (int i = 0; i < (int)templates.size(); ++i){
-    Template& templ = templates[i];
-    templ.width = (max_x - min_x) >> templ.pyramid_level;
-    templ.height = (max_y - min_y) >> templ.pyramid_level;
-    int offset_x = min_x >> templ.pyramid_level;
-    int offset_y = min_y >> templ.pyramid_level;
-
-    for (int j = 0; j < (int)templ.features.size(); ++j)
-    {
-      templ.features[j].x -= offset_x;
-      templ.features[j].y -= offset_y;
-    }
-  }
-
-  return Rect(min_x, min_y, max_x - min_x, max_y - min_y);
 }
 
-bool ColorGradientPyramid::selectScatteredFeatures(const std::vector<Candidate>& candidates,
-                                               std::vector<Feature>& features,
-                                               size_t num_features, float distance)
+void Feature::read(const FileNode &fn)
 {
-  features.clear();
-  float distance_sq = distance * distance;
-  int i = 0;
-  while (features.size() < num_features)
-  {
-    Candidate c = candidates[i];
-
-    // Add if sufficient distance away from any previously chosen feature
-    bool keep = true;
-    for (int j = 0; (j < (int)features.size()) && keep; ++j)
-    {
-      Feature f = features[j];
-      keep = (c.f.x - f.x)*(c.f.x - f.x) + (c.f.y - f.y)*(c.f.y - f.y) >= distance_sq;
-    }
-    if (keep)
-      features.push_back(c.f);
-
-    if (++i == (int)candidates.size())
-    {
-      // Start back at beginning, and relax required distance
-      i = 0;
-      distance -= 1.0f;
-      distance_sq = distance * distance;
-//      if(distance<3){
-//          // we don't want two features too close
-//          break;
-//      }
-    }
-  }
-  if(features.size() == num_features){
-      return true;
-  }else{
-      std::cout << "this templ has no enough features" << std::endl;
-      return false;
-  }
+    FileNodeIterator fni = fn.begin();
+    fni >> x >> y >> label;
 }
 
+void Feature::write(FileStorage &fs) const
+{
+    fs << "[:" << x << y << label << "]";
+}
+
+void Template::read(const FileNode &fn)
+{
+    width = fn["width"];
+    height = fn["height"];
+    pyramid_level = fn["pyramid_level"];
+
+    FileNode features_fn = fn["features"];
+    features.resize(features_fn.size());
+    FileNodeIterator it = features_fn.begin(), it_end = features_fn.end();
+    for (int i = 0; it != it_end; ++it, ++i)
+    {
+        features[i].read(*it);
+    }
+}
+
+void Template::write(FileStorage &fs) const
+{
+    fs << "width" << width;
+    fs << "height" << height;
+    fs << "pyramid_level" << pyramid_level;
+
+    fs << "features"
+       << "[";
+    for (int i = 0; i < (int)features.size(); ++i)
+    {
+        features[i].write(fs);
+    }
+    fs << "]"; // features
+}
+
+static Rect cropTemplates(std::vector<Template> &templates)
+{
+    int min_x = std::numeric_limits<int>::max();
+    int min_y = std::numeric_limits<int>::max();
+    int max_x = std::numeric_limits<int>::min();
+    int max_y = std::numeric_limits<int>::min();
+
+    // First pass: find min/max feature x,y over all pyramid levels and modalities
+    for (int i = 0; i < (int)templates.size(); ++i)
+    {
+        Template &templ = templates[i];
+
+        for (int j = 0; j < (int)templ.features.size(); ++j)
+        {
+            int x = templ.features[j].x << templ.pyramid_level;
+            int y = templ.features[j].y << templ.pyramid_level;
+            min_x = std::min(min_x, x);
+            min_y = std::min(min_y, y);
+            max_x = std::max(max_x, x);
+            max_y = std::max(max_y, y);
+        }
+    }
+
+    /// @todo Why require even min_x, min_y?
+    if (min_x % 2 == 1)
+        --min_x;
+    if (min_y % 2 == 1)
+        --min_y;
+
+    // Second pass: set width/height and shift all feature positions
+    for (int i = 0; i < (int)templates.size(); ++i)
+    {
+        Template &templ = templates[i];
+        templ.width = (max_x - min_x) >> templ.pyramid_level;
+        templ.height = (max_y - min_y) >> templ.pyramid_level;
+        int offset_x = min_x >> templ.pyramid_level;
+        int offset_y = min_y >> templ.pyramid_level;
+
+        for (int j = 0; j < (int)templ.features.size(); ++j)
+        {
+            templ.features[j].x -= offset_x;
+            templ.features[j].y -= offset_y;
+        }
+    }
+
+    return Rect(min_x, min_y, max_x - min_x, max_y - min_y);
+}
+
+bool ColorGradientPyramid::selectScatteredFeatures(const std::vector<Candidate> &candidates,
+                                                   std::vector<Feature> &features,
+                                                   size_t num_features, float distance)
+{
+    features.clear();
+    float distance_sq = distance * distance;
+    int i = 0;
+    while (features.size() < num_features)
+    {
+        Candidate c = candidates[i];
+
+        // Add if sufficient distance away from any previously chosen feature
+        bool keep = true;
+        for (int j = 0; (j < (int)features.size()) && keep; ++j)
+        {
+            Feature f = features[j];
+            keep = (c.f.x - f.x) * (c.f.x - f.x) + (c.f.y - f.y) * (c.f.y - f.y) >= distance_sq;
+        }
+        if (keep)
+            features.push_back(c.f);
+
+        if (++i == (int)candidates.size())
+        {
+            // Start back at beginning, and relax required distance
+            i = 0;
+            distance -= 1.0f;
+            distance_sq = distance * distance;
+            // if (distance < 3)
+            // {
+            //     // we don't want two features too close
+            //     break;
+            // }
+        }
+    }
+    if (features.size() == num_features)
+    {
+        return true;
+    }
+    else
+    {
+        std::cout << "this templ has no enough features" << std::endl;
+        return false;
+    }
+}
 
 /****************************************************************************************\
-*                             Color gradient ColorGradient                                    *
+*                                                         Color gradient ColorGradient                                                                        *
 \****************************************************************************************/
 
-// Forward declaration
-void hysteresisGradient(Mat& magnitude, Mat& angle,
-                        Mat& ap_tmp, float threshold);
-
-static void quantizedOrientations(const Mat& src, Mat& magnitude,
-                           Mat& angle, float threshold)
+void hysteresisGradient(Mat &magnitude, Mat &quantized_angle,
+                        Mat &angle, float threshold)
 {
-  magnitude.create(src.size(), CV_32F);
+    // Quantize 360 degree range of orientations into 16 buckets
+    // Note that [0, 11.25), [348.75, 360) both get mapped in the end to label 0,
+    // for stability of horizontal and vertical features.
+    Mat_<unsigned char> quantized_unfiltered;
+    angle.convertTo(quantized_unfiltered, CV_8U, 16.0 / 360.0);
 
-  // Allocate temporary buffers
-  Size size = src.size();
-  Mat sobel_3dx; // per-channel horizontal derivative
-  Mat sobel_3dy; // per-channel vertical derivative
-  Mat sobel_dx(size, CV_32F);      // maximum horizontal derivative
-  Mat sobel_dy(size, CV_32F);      // maximum vertical derivative
-  Mat sobel_ag;  // final gradient orientation (unquantized)
-  Mat smoothed;
-
-  // Compute horizontal and vertical image derivatives on all color channels separately
-  static const int KERNEL_SIZE = 7;
-  // For some reason cvSmooth/cv::GaussianBlur, cvSobel/cv::Sobel have different defaults for border handling...
-  GaussianBlur(src, smoothed, Size(KERNEL_SIZE, KERNEL_SIZE), 0, 0, BORDER_REPLICATE);
-  Sobel(smoothed, sobel_3dx, CV_16S, 1, 0, 3, 1.0, 0.0, BORDER_REPLICATE);
-  Sobel(smoothed, sobel_3dy, CV_16S, 0, 1, 3, 1.0, 0.0, BORDER_REPLICATE);
-
-  short * ptrx  = (short *)sobel_3dx.data;
-  short * ptry  = (short *)sobel_3dy.data;
-  float * ptr0x = (float *)sobel_dx.data;
-  float * ptr0y = (float *)sobel_dy.data;
-  float * ptrmg = (float *)magnitude.data;
-
-  const int length1 = static_cast<const int>(sobel_3dx.step1());
-  const int length2 = static_cast<const int>(sobel_3dy.step1());
-  const int length3 = static_cast<const int>(sobel_dx.step1());
-  const int length4 = static_cast<const int>(sobel_dy.step1());
-  const int length5 = static_cast<const int>(magnitude.step1());
-  const int length0 = sobel_3dy.cols * 3;
-
-  for (int r = 0; r < sobel_3dy.rows; ++r)
-  {
-    int ind = 0;
-
-    for (int i = 0; i < length0; i += 3)
+    // Zero out top and bottom rows
+    /// @todo is this necessary, or even correct?
+    memset(quantized_unfiltered.ptr(), 0, quantized_unfiltered.cols);
+    memset(quantized_unfiltered.ptr(quantized_unfiltered.rows - 1), 0, quantized_unfiltered.cols);
+    // Zero out first and last columns
+    for (int r = 0; r < quantized_unfiltered.rows; ++r)
     {
-      // Use the gradient orientation of the channel whose magnitude is largest
-      int mag1 = ptrx[i+0] * ptrx[i + 0] + ptry[i + 0] * ptry[i + 0];
-      int mag2 = ptrx[i+1] * ptrx[i + 1] + ptry[i + 1] * ptry[i + 1];
-      int mag3 = ptrx[i+2] * ptrx[i + 2] + ptry[i + 2] * ptry[i + 2];
-
-      if (mag1 >= mag2 && mag1 >= mag3)
-      {
-        ptr0x[ind] = ptrx[i];
-        ptr0y[ind] = ptry[i];
-        ptrmg[ind] = (float)mag1;
-      }
-      else if (mag2 >= mag1 && mag2 >= mag3)
-      {
-        ptr0x[ind] = ptrx[i + 1];
-        ptr0y[ind] = ptry[i + 1];
-        ptrmg[ind] = (float)mag2;
-      }
-      else
-      {
-        ptr0x[ind] = ptrx[i + 2];
-        ptr0y[ind] = ptry[i + 2];
-        ptrmg[ind] = (float)mag3;
-      }
-      ++ind;
+        quantized_unfiltered(r, 0) = 0;
+        quantized_unfiltered(r, quantized_unfiltered.cols - 1) = 0;
     }
-    ptrx += length1;
-    ptry += length2;
-    ptr0x += length3;
-    ptr0y += length4;
-    ptrmg += length5;
-  }
 
-  // Calculate the final gradient orientations
-  phase(sobel_dx, sobel_dy, sobel_ag, true);
-  hysteresisGradient(magnitude, angle, sobel_ag, threshold * threshold);
-}
-
-void hysteresisGradient(Mat& magnitude, Mat& quantized_angle,
-                        Mat& angle, float threshold)
-{
-  // Quantize 360 degree range of orientations into 16 buckets
-  // Note that [0, 11.25), [348.75, 360) both get mapped in the end to label 0,
-  // for stability of horizontal and vertical features.
-  Mat_<unsigned char> quantized_unfiltered;
-  angle.convertTo(quantized_unfiltered, CV_8U, 16.0 / 360.0);
-
-  // Zero out top and bottom rows
-  /// @todo is this necessary, or even correct?
-  memset(quantized_unfiltered.ptr(), 0, quantized_unfiltered.cols);
-  memset(quantized_unfiltered.ptr(quantized_unfiltered.rows - 1), 0, quantized_unfiltered.cols);
-  // Zero out first and last columns
-  for (int r = 0; r < quantized_unfiltered.rows; ++r)
-  {
-    quantized_unfiltered(r, 0) = 0;
-    quantized_unfiltered(r, quantized_unfiltered.cols - 1) = 0;
-  }
-
-  // Mask 16 buckets into 8 quantized orientations
-  for (int r = 1; r < angle.rows - 1; ++r)
-  {
-    uchar* quant_r = quantized_unfiltered.ptr<uchar>(r);
-    for (int c = 1; c < angle.cols - 1; ++c)
+    // Mask 16 buckets into 8 quantized orientations
+    for (int r = 1; r < angle.rows - 1; ++r)
     {
-      quant_r[c] &= 7;
-    }
-  }
-
-  // Filter the raw quantized image. Only accept pixels where the magnitude is above some
-  // threshold, and there is local agreement on the quantization.
-  quantized_angle = Mat::zeros(angle.size(), CV_8U);
-  for (int r = 1; r < angle.rows - 1; ++r)
-  {
-    float* mag_r = magnitude.ptr<float>(r);
-
-    for (int c = 1; c < angle.cols - 1; ++c)
-    {
-      if (mag_r[c] > threshold)
-      {
-  // Compute histogram of quantized bins in 3x3 patch around pixel
-        int histogram[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-
-        uchar* patch3x3_row = &quantized_unfiltered(r-1, c-1);
-        histogram[patch3x3_row[0]]++;
-        histogram[patch3x3_row[1]]++;
-        histogram[patch3x3_row[2]]++;
-
-  patch3x3_row += quantized_unfiltered.step1();
-        histogram[patch3x3_row[0]]++;
-        histogram[patch3x3_row[1]]++;
-        histogram[patch3x3_row[2]]++;
-
-  patch3x3_row += quantized_unfiltered.step1();
-        histogram[patch3x3_row[0]]++;
-        histogram[patch3x3_row[1]]++;
-        histogram[patch3x3_row[2]]++;
-
-  // Find bin with the most votes from the patch
-        int max_votes = 0;
-        int index = -1;
-        for (int i = 0; i < 8; ++i)
+        uchar *quant_r = quantized_unfiltered.ptr<uchar>(r);
+        for (int c = 1; c < angle.cols - 1; ++c)
         {
-          if (max_votes < histogram[i])
-          {
-            index = i;
-            max_votes = histogram[i];
-          }
+            quant_r[c] &= 7;
         }
-
-  // Only accept the quantization if majority of pixels in the patch agree
-  static const int NEIGHBOR_THRESHOLD = 5;
-        if (max_votes >= NEIGHBOR_THRESHOLD)
-          quantized_angle.at<uchar>(r, c) = uchar(1 << index);
-      }
     }
-  }
+
+    // Filter the raw quantized image. Only accept pixels where the magnitude is above some
+    // threshold, and there is local agreement on the quantization.
+    quantized_angle = Mat::zeros(angle.size(), CV_8U);
+    for (int r = 1; r < angle.rows - 1; ++r)
+    {
+        float *mag_r = magnitude.ptr<float>(r);
+
+        for (int c = 1; c < angle.cols - 1; ++c)
+        {
+            if (mag_r[c] > threshold)
+            {
+                // Compute histogram of quantized bins in 3x3 patch around pixel
+                int histogram[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+                uchar *patch3x3_row = &quantized_unfiltered(r - 1, c - 1);
+                histogram[patch3x3_row[0]]++;
+                histogram[patch3x3_row[1]]++;
+                histogram[patch3x3_row[2]]++;
+
+                patch3x3_row += quantized_unfiltered.step1();
+                histogram[patch3x3_row[0]]++;
+                histogram[patch3x3_row[1]]++;
+                histogram[patch3x3_row[2]]++;
+
+                patch3x3_row += quantized_unfiltered.step1();
+                histogram[patch3x3_row[0]]++;
+                histogram[patch3x3_row[1]]++;
+                histogram[patch3x3_row[2]]++;
+
+                // Find bin with the most votes from the patch
+                int max_votes = 0;
+                int index = -1;
+                for (int i = 0; i < 8; ++i)
+                {
+                    if (max_votes < histogram[i])
+                    {
+                        index = i;
+                        max_votes = histogram[i];
+                    }
+                }
+
+                // Only accept the quantization if majority of pixels in the patch agree
+                static const int NEIGHBOR_THRESHOLD = 5;
+                if (max_votes >= NEIGHBOR_THRESHOLD)
+                    quantized_angle.at<uchar>(r, c) = uchar(1 << index);
+            }
+        }
+    }
 }
 
+static void quantizedOrientations(const Mat &src, Mat &magnitude,
+                                  Mat &angle, float threshold)
+{
+    magnitude.create(src.size(), CV_32F);
 
-ColorGradientPyramid::ColorGradientPyramid(const Mat& _src, const Mat& _mask,
+    // Allocate temporary buffers
+    Size size = src.size();
+    Mat sobel_3dx;              // per-channel horizontal derivative
+    Mat sobel_3dy;              // per-channel vertical derivative
+    Mat sobel_dx(size, CV_32F); // maximum horizontal derivative
+    Mat sobel_dy(size, CV_32F); // maximum vertical derivative
+    Mat sobel_ag;               // final gradient orientation (unquantized)
+    Mat smoothed;
+
+    // Compute horizontal and vertical image derivatives on all color channels separately
+    static const int KERNEL_SIZE = 7;
+    // For some reason cvSmooth/cv::GaussianBlur, cvSobel/cv::Sobel have different defaults for border handling...
+    GaussianBlur(src, smoothed, Size(KERNEL_SIZE, KERNEL_SIZE), 0, 0, BORDER_REPLICATE);
+    Sobel(smoothed, sobel_3dx, CV_16S, 1, 0, 3, 1.0, 0.0, BORDER_REPLICATE);
+    Sobel(smoothed, sobel_3dy, CV_16S, 0, 1, 3, 1.0, 0.0, BORDER_REPLICATE);
+
+    short *ptrx = (short *)sobel_3dx.data;
+    short *ptry = (short *)sobel_3dy.data;
+    float *ptr0x = (float *)sobel_dx.data;
+    float *ptr0y = (float *)sobel_dy.data;
+    float *ptrmg = (float *)magnitude.data;
+
+    const int length1 = static_cast<const int>(sobel_3dx.step1());
+    const int length2 = static_cast<const int>(sobel_3dy.step1());
+    const int length3 = static_cast<const int>(sobel_dx.step1());
+    const int length4 = static_cast<const int>(sobel_dy.step1());
+    const int length5 = static_cast<const int>(magnitude.step1());
+    const int length0 = sobel_3dy.cols * 3;
+
+    for (int r = 0; r < sobel_3dy.rows; ++r)
+    {
+        int ind = 0;
+
+        for (int i = 0; i < length0; i += 3)
+        {
+            // Use the gradient orientation of the channel whose magnitude is largest
+            int mag1 = ptrx[i + 0] * ptrx[i + 0] + ptry[i + 0] * ptry[i + 0];
+            int mag2 = ptrx[i + 1] * ptrx[i + 1] + ptry[i + 1] * ptry[i + 1];
+            int mag3 = ptrx[i + 2] * ptrx[i + 2] + ptry[i + 2] * ptry[i + 2];
+
+            if (mag1 >= mag2 && mag1 >= mag3)
+            {
+                ptr0x[ind] = ptrx[i];
+                ptr0y[ind] = ptry[i];
+                ptrmg[ind] = (float)mag1;
+            }
+            else if (mag2 >= mag1 && mag2 >= mag3)
+            {
+                ptr0x[ind] = ptrx[i + 1];
+                ptr0y[ind] = ptry[i + 1];
+                ptrmg[ind] = (float)mag2;
+            }
+            else
+            {
+                ptr0x[ind] = ptrx[i + 2];
+                ptr0y[ind] = ptry[i + 2];
+                ptrmg[ind] = (float)mag3;
+            }
+            ++ind;
+        }
+        ptrx += length1;
+        ptry += length2;
+        ptr0x += length3;
+        ptr0y += length4;
+        ptrmg += length5;
+    }
+
+    // Calculate the final gradient orientations
+    phase(sobel_dx, sobel_dy, sobel_ag, true);
+    hysteresisGradient(magnitude, angle, sobel_ag, threshold * threshold);
+}
+
+ColorGradientPyramid::ColorGradientPyramid(const Mat &_src, const Mat &_mask,
                                            float _weak_threshold, size_t _num_features,
                                            float _strong_threshold)
-  : src(_src),
-    mask(_mask),
-    pyramid_level(0),
-    weak_threshold(_weak_threshold),
-    num_features(_num_features),
-    strong_threshold(_strong_threshold)
+    : src(_src),
+      mask(_mask),
+      pyramid_level(0),
+      weak_threshold(_weak_threshold),
+      num_features(_num_features),
+      strong_threshold(_strong_threshold)
 {
-  update();
+    update();
 }
 
 void ColorGradientPyramid::update()
 {
-  quantizedOrientations(src, magnitude, angle, weak_threshold);
+    quantizedOrientations(src, magnitude, angle, weak_threshold);
 }
 
 void ColorGradientPyramid::pyrDown()
 {
-  // Some parameters need to be adjusted
-  num_features /= 2; /// @todo Why not 4?
-  ++pyramid_level;
+    // Some parameters need to be adjusted
+    num_features /= 2; /// @todo Why not 4?
+    ++pyramid_level;
 
-  // Downsample the current inputs
-  Size size(src.cols / 2, src.rows / 2);
-  Mat next_src;
-  cv::pyrDown(src, next_src, size);
-  src = next_src;
+    // Downsample the current inputs
+    Size size(src.cols / 2, src.rows / 2);
+    Mat next_src;
+    cv::pyrDown(src, next_src, size);
+    src = next_src;
 
-  if (!mask.empty())
-  {
-    Mat next_mask;
-    resize(mask, next_mask, size, 0.0, 0.0, INTER_NEAREST);
-    mask = next_mask;
-  }
-
-  update();
-}
-
-void ColorGradientPyramid::quantize(Mat& dst) const
-{
-  dst = Mat::zeros(angle.size(), CV_8U);
-  angle.copyTo(dst, mask);
-}
-
-bool ColorGradientPyramid::extractTemplate(Template& templ) const
-{
-  // Want features on the border to distinguish from background
-  Mat local_mask;
-  if (!mask.empty())
-  {
-    erode(mask, local_mask, Mat(), Point(-1,-1), 1, BORDER_REPLICATE);
-    subtract(mask, local_mask, local_mask);
-  }
-
-  // Create sorted list of all pixels with magnitude greater than a threshold
-  std::vector<Candidate> candidates;
-  bool no_mask = local_mask.empty();
-  float threshold_sq = strong_threshold*strong_threshold;
-  for (int r = 0; r < magnitude.rows; ++r)
-  {
-    const uchar* angle_r = angle.ptr<uchar>(r);
-    const float* magnitude_r = magnitude.ptr<float>(r);
-    const uchar* mask_r = no_mask ? NULL : local_mask.ptr<uchar>(r);
-
-    for (int c = 0; c < magnitude.cols; ++c)
+    if (!mask.empty())
     {
-      if (no_mask || mask_r[c])
-      {
-        uchar quantized = angle_r[c];
-        if (quantized > 0)
-        {
-          float score = magnitude_r[c];
-          if (score > threshold_sq)
-          {
-            candidates.push_back(Candidate(c, r, getLabel(quantized), score));
-          }
-        }
-      }
+        Mat next_mask;
+        resize(mask, next_mask, size, 0.0, 0.0, INTER_NEAREST);
+        mask = next_mask;
     }
-  }
-  // We require a certain number of features
-  if (candidates.size() < num_features)
-    return false;
-  // NOTE: Stable sort to agree with old code, which used std::list::sort()
-  std::stable_sort(candidates.begin(), candidates.end());
 
-  // Use heuristic based on surplus of candidates in narrow outline for initial distance threshold
-  float distance = static_cast<float>(candidates.size() / num_features + 1);
-  if(!selectScatteredFeatures(candidates, templ.features, num_features, distance)){
-      return false;
-  }
+    update();
+}
 
-  // Size determined externally, needs to match templates for other modalities
-  templ.width = -1;
-  templ.height = -1;
-  templ.pyramid_level = pyramid_level;
+void ColorGradientPyramid::quantize(Mat &dst) const
+{
+    dst = Mat::zeros(angle.size(), CV_8U);
+    angle.copyTo(dst, mask);
+}
 
-  return true;
+bool ColorGradientPyramid::extractTemplate(Template &templ) const
+{
+    // Want features on the border to distinguish from background
+    Mat local_mask;
+    if (!mask.empty())
+    {
+        erode(mask, local_mask, Mat(), Point(-1, -1), 1, BORDER_REPLICATE);
+        subtract(mask, local_mask, local_mask);
+    }
+
+    // Create sorted list of all pixels with magnitude greater than a threshold
+    std::vector<Candidate> candidates;
+    bool no_mask = local_mask.empty();
+    float threshold_sq = strong_threshold * strong_threshold;
+    for (int r = 0; r < magnitude.rows; ++r)
+    {
+        const uchar *angle_r = angle.ptr<uchar>(r);
+        const float *magnitude_r = magnitude.ptr<float>(r);
+        const uchar *mask_r = no_mask ? NULL : local_mask.ptr<uchar>(r);
+
+        for (int c = 0; c < magnitude.cols; ++c)
+        {
+            if (no_mask || mask_r[c])
+            {
+                uchar quantized = angle_r[c];
+                if (quantized > 0)
+                {
+                    float score = magnitude_r[c];
+                    if (score > threshold_sq)
+                    {
+                        candidates.push_back(Candidate(c, r, getLabel(quantized), score));
+                    }
+                }
+            }
+        }
+    }
+    // We require a certain number of features
+    if (candidates.size() < num_features)
+        return false;
+    // NOTE: Stable sort to agree with old code, which used std::list::sort()
+    std::stable_sort(candidates.begin(), candidates.end());
+
+    // Use heuristic based on surplus of candidates in narrow outline for initial distance threshold
+    float distance = static_cast<float>(candidates.size() / num_features + 1);
+    if (!selectScatteredFeatures(candidates, templ.features, num_features, distance))
+    {
+        return false;
+    }
+
+    // Size determined externally, needs to match templates for other modalities
+    templ.width = -1;
+    templ.height = -1;
+    templ.pyramid_level = pyramid_level;
+
+    return true;
 }
 
 ColorGradient::ColorGradient()
-  : weak_threshold(10.0f),
-    num_features(63),
-    strong_threshold(55.0f)
+    : weak_threshold(10.0f),
+      num_features(63),
+      strong_threshold(55.0f)
 {
 }
 
 ColorGradient::ColorGradient(float _weak_threshold, size_t _num_features, float _strong_threshold)
-  : weak_threshold(_weak_threshold),
-    num_features(_num_features),
-    strong_threshold(_strong_threshold)
+    : weak_threshold(_weak_threshold),
+      num_features(_num_features),
+      strong_threshold(_strong_threshold)
 {
 }
 
@@ -441,548 +453,527 @@ static const char CG_NAME[] = "ColorGradient";
 
 std::string ColorGradient::name() const
 {
-  return CG_NAME;
+    return CG_NAME;
 }
 
 Ptr<ColorGradientPyramid> ColorGradient::processImpl(const std::vector<cv::Mat> &src,
-                                                     const Mat& mask) const
+                                                     const Mat &mask) const
 {
 
-  auto pd = makePtr<ColorGradientPyramid>(src[0], mask, weak_threshold, num_features, strong_threshold);
-  return pd;
+    auto pd = makePtr<ColorGradientPyramid>(src[0], mask, weak_threshold, num_features, strong_threshold);
+    return pd;
 }
 
-void ColorGradient::read(const FileNode& fn)
+void ColorGradient::read(const FileNode &fn)
 {
-  String type = fn["type"];
-  CV_Assert(type == CG_NAME);
+    String type = fn["type"];
+    CV_Assert(type == CG_NAME);
 
-  weak_threshold = fn["weak_threshold"];
-  num_features = int(fn["num_features"]);
-  strong_threshold = fn["strong_threshold"];
+    weak_threshold = fn["weak_threshold"];
+    num_features = int(fn["num_features"]);
+    strong_threshold = fn["strong_threshold"];
 }
 
-void ColorGradient::write(FileStorage& fs) const
+void ColorGradient::write(FileStorage &fs) const
 {
-  fs << "type" << CG_NAME;
-  fs << "weak_threshold" << weak_threshold;
-  fs << "num_features" << int(num_features);
-  fs << "strong_threshold" << strong_threshold;
+    fs << "type" << CG_NAME;
+    fs << "weak_threshold" << weak_threshold;
+    fs << "num_features" << int(num_features);
+    fs << "strong_threshold" << strong_threshold;
 }
 /****************************************************************************************\
-*                                 Response maps                                          *
+*                                                                 Response maps                                                                                    *
 \****************************************************************************************/
 
-static void orUnaligned8u(const uchar * src, const int src_stride,
-                   uchar * dst, const int dst_stride,
-                   const int width, const int height)
+static void orUnaligned8u(const uchar *src, const int src_stride,
+                          uchar *dst, const int dst_stride,
+                          const int width, const int height)
 {
 #if CV_SSE2
-  volatile bool haveSSE2 = checkHardwareSupport(CPU_SSE2);
+    volatile bool haveSSE2 = checkHardwareSupport(CPU_SSE2);
 #if CV_SSE3
-  volatile bool haveSSE3 = checkHardwareSupport(CPU_SSE3);
+    volatile bool haveSSE3 = checkHardwareSupport(CPU_SSE3);
 #endif
-  bool src_aligned = reinterpret_cast<unsigned long long>(src) % 16 == 0;
+    bool src_aligned = reinterpret_cast<unsigned long long>(src) % 16 == 0;
 #endif
 
-  for (int r = 0; r < height; ++r)
-  {
-    int c = 0;
+    for (int r = 0; r < height; ++r)
+    {
+        int c = 0;
 
 #if CV_SSE2
-    // Use aligned loads if possible
-    if (haveSSE2 && src_aligned)
-    {
-      for ( ; c < width - 15; c += 16)
-      {
-        const __m128i* src_ptr = reinterpret_cast<const __m128i*>(src + c);
-        __m128i* dst_ptr = reinterpret_cast<__m128i*>(dst + c);
-        *dst_ptr = _mm_or_si128(*dst_ptr, *src_ptr);
-      }
-    }
+        // Use aligned loads if possible
+        if (haveSSE2 && src_aligned)
+        {
+            for (; c < width - 15; c += 16)
+            {
+                const __m128i *src_ptr = reinterpret_cast<const __m128i *>(src + c);
+                __m128i *dst_ptr = reinterpret_cast<__m128i *>(dst + c);
+                *dst_ptr = _mm_or_si128(*dst_ptr, *src_ptr);
+            }
+        }
 #if CV_SSE3
-    // Use LDDQU for fast unaligned load
-    else if (haveSSE3)
-    {
-      for ( ; c < width - 15; c += 16)
-      {
-        __m128i val = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(src + c));
-        __m128i* dst_ptr = reinterpret_cast<__m128i*>(dst + c);
-        *dst_ptr = _mm_or_si128(*dst_ptr, val);
-      }
-    }
+        // Use LDDQU for fast unaligned load
+        else if (haveSSE3)
+        {
+            for (; c < width - 15; c += 16)
+            {
+                __m128i val = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(src + c));
+                __m128i *dst_ptr = reinterpret_cast<__m128i *>(dst + c);
+                *dst_ptr = _mm_or_si128(*dst_ptr, val);
+            }
+        }
 #endif
-    // Fall back to MOVDQU
-    else if (haveSSE2)
-    {
-      for ( ; c < width - 15; c += 16)
-      {
-        __m128i val = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src + c));
-        __m128i* dst_ptr = reinterpret_cast<__m128i*>(dst + c);
-        *dst_ptr = _mm_or_si128(*dst_ptr, val);
-      }
-    }
+        // Fall back to MOVDQU
+        else if (haveSSE2)
+        {
+            for (; c < width - 15; c += 16)
+            {
+                __m128i val = _mm_loadu_si128(reinterpret_cast<const __m128i *>(src + c));
+                __m128i *dst_ptr = reinterpret_cast<__m128i *>(dst + c);
+                *dst_ptr = _mm_or_si128(*dst_ptr, val);
+            }
+        }
 #endif
-    for ( ; c < width; ++c)
-      dst[c] |= src[c];
+        for (; c < width; ++c)
+            dst[c] |= src[c];
 
-    // Advance to next row
-    src += src_stride;
-    dst += dst_stride;
-  }
+        // Advance to next row
+        src += src_stride;
+        dst += dst_stride;
+    }
 }
 
-
-static void spread(const Mat& src, Mat& dst, int T)
+static void spread(const Mat &src, Mat &dst, int T)
 {
-  // Allocate and zero-initialize spread (OR'ed) image
-  dst = Mat::zeros(src.size(), CV_8U);
+    // Allocate and zero-initialize spread (OR'ed) image
+    dst = Mat::zeros(src.size(), CV_8U);
 
-  // Fill in spread gradient image (section 2.3)
-  for (int r = 0; r < T; ++r)
-  {
-    int height = src.rows - r;
-    for (int c = 0; c < T; ++c)
+    // Fill in spread gradient image (section 2.3)
+    for (int r = 0; r < T; ++r)
     {
-      orUnaligned8u(&src.at<unsigned char>(r, c), static_cast<const int>(src.step1()), dst.ptr(),
-                    static_cast<const int>(dst.step1()), src.cols - c, height);
+        int height = src.rows - r;
+        for (int c = 0; c < T; ++c)
+        {
+            orUnaligned8u(&src.at<unsigned char>(r, c), static_cast<const int>(src.step1()), dst.ptr(),
+                          static_cast<const int>(dst.step1()), src.cols - c, height);
+        }
     }
-  }
 }
 
 // 1,2-->0 3-->1
-CV_DECL_ALIGNED(16) static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
+CV_DECL_ALIGNED(16)
+static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
 
-static void computeResponseMaps(const Mat& src, std::vector<Mat>& response_maps)
+static void computeResponseMaps(const Mat &src, std::vector<Mat> &response_maps)
 {
-  CV_Assert((src.rows * src.cols) % 16 == 0);
+    CV_Assert((src.rows * src.cols) % 16 == 0);
 
-  // Allocate response maps
-  response_maps.resize(8);
-  for (int i = 0; i < 8; ++i)
-    response_maps[i].create(src.size(), CV_8U);
+    // Allocate response maps
+    response_maps.resize(8);
+    for (int i = 0; i < 8; ++i)
+        response_maps[i].create(src.size(), CV_8U);
 
-  Mat lsb4(src.size(), CV_8U);
-  Mat msb4(src.size(), CV_8U);
+    Mat lsb4(src.size(), CV_8U);
+    Mat msb4(src.size(), CV_8U);
 
-  for (int r = 0; r < src.rows; ++r)
-  {
-    const uchar* src_r = src.ptr(r);
-    uchar* lsb4_r = lsb4.ptr(r);
-    uchar* msb4_r = msb4.ptr(r);
-
-    for (int c = 0; c < src.cols; ++c)
+    for (int r = 0; r < src.rows; ++r)
     {
-      // Least significant 4 bits of spread image pixel
-      lsb4_r[c] = src_r[c] & 15;
-      // Most significant 4 bits, right-shifted to be in [0, 16)
-      msb4_r[c] = (src_r[c] & 240) >> 4;
+        const uchar *src_r = src.ptr(r);
+        uchar *lsb4_r = lsb4.ptr(r);
+        uchar *msb4_r = msb4.ptr(r);
+
+        for (int c = 0; c < src.cols; ++c)
+        {
+            // Least significant 4 bits of spread image pixel
+            lsb4_r[c] = src_r[c] & 15;
+            // Most significant 4 bits, right-shifted to be in [0, 16)
+            msb4_r[c] = (src_r[c] & 240) >> 4;
+        }
     }
-  }
 
 #if CV_SSSE3
-  volatile bool haveSSSE3 = checkHardwareSupport(CV_CPU_SSSE3);
-  if (haveSSSE3)
-  {
-    const __m128i* lut = reinterpret_cast<const __m128i*>(SIMILARITY_LUT);
-    for (int ori = 0; ori < 8; ++ori)
+    volatile bool haveSSSE3 = checkHardwareSupport(CV_CPU_SSSE3);
+    if (haveSSSE3)
     {
-      __m128i* map_data = response_maps[ori].ptr<__m128i>();
-      __m128i* lsb4_data = lsb4.ptr<__m128i>();
-      __m128i* msb4_data = msb4.ptr<__m128i>();
+        const __m128i *lut = reinterpret_cast<const __m128i *>(SIMILARITY_LUT);
+        for (int ori = 0; ori < 8; ++ori)
+        {
+            __m128i *map_data = response_maps[ori].ptr<__m128i>();
+            __m128i *lsb4_data = lsb4.ptr<__m128i>();
+            __m128i *msb4_data = msb4.ptr<__m128i>();
 
-      // Precompute the 2D response map S_i (section 2.4)
-      for (int i = 0; i < (src.rows * src.cols) / 16; ++i)
-      {
-        // Using SSE shuffle for table lookup on 4 orientations at a time
-        // The most/least significant 4 bits are used as the LUT index
-        __m128i res1 = _mm_shuffle_epi8(lut[2*ori + 0], lsb4_data[i]);
-        __m128i res2 = _mm_shuffle_epi8(lut[2*ori + 1], msb4_data[i]);
+            // Precompute the 2D response map S_i (section 2.4)
+            for (int i = 0; i < (src.rows * src.cols) / 16; ++i)
+            {
+                // Using SSE shuffle for table lookup on 4 orientations at a time
+                // The most/least significant 4 bits are used as the LUT index
+                __m128i res1 = _mm_shuffle_epi8(lut[2 * ori + 0], lsb4_data[i]);
+                __m128i res2 = _mm_shuffle_epi8(lut[2 * ori + 1], msb4_data[i]);
 
-        // Combine the results into a single similarity score
-        map_data[i] = _mm_max_epu8(res1, res2);
-      }
+                // Combine the results into a single similarity score
+                map_data[i] = _mm_max_epu8(res1, res2);
+            }
+        }
     }
-  }
-  else
+    else
 #endif
-  {
-    // For each of the 8 quantized orientations...
-    for (int ori = 0; ori < 8; ++ori)
     {
-      uchar* map_data = response_maps[ori].ptr<uchar>();
-      uchar* lsb4_data = lsb4.ptr<uchar>();
-      uchar* msb4_data = msb4.ptr<uchar>();
-      const uchar* lut_low = SIMILARITY_LUT + 32*ori;
-      const uchar* lut_hi = lut_low + 16;
+        // For each of the 8 quantized orientations...
+        for (int ori = 0; ori < 8; ++ori)
+        {
+            uchar *map_data = response_maps[ori].ptr<uchar>();
+            uchar *lsb4_data = lsb4.ptr<uchar>();
+            uchar *msb4_data = msb4.ptr<uchar>();
+            const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
+            const uchar *lut_hi = lut_low + 16;
 
-      for (int i = 0; i < src.rows * src.cols; ++i)
-      {
-        map_data[i] = std::max(lut_low[ lsb4_data[i] ], lut_hi[ msb4_data[i] ]);
-      }
+            for (int i = 0; i < src.rows * src.cols; ++i)
+            {
+                map_data[i] = std::max(lut_low[lsb4_data[i]], lut_hi[msb4_data[i]]);
+            }
+        }
     }
-  }
 }
 
-static void linearize(const Mat& response_map, Mat& linearized, int T)
+static void linearize(const Mat &response_map, Mat &linearized, int T)
 {
-  CV_Assert(response_map.rows % T == 0);
-  CV_Assert(response_map.cols % T == 0);
+    CV_Assert(response_map.rows % T == 0);
+    CV_Assert(response_map.cols % T == 0);
 
-  // linearized has T^2 rows, where each row is a linear memory
-  int mem_width = response_map.cols / T;
-  int mem_height = response_map.rows / T;
-  linearized.create(T*T, mem_width * mem_height, CV_8U);
+    // linearized has T^2 rows, where each row is a linear memory
+    int mem_width = response_map.cols / T;
+    int mem_height = response_map.rows / T;
+    linearized.create(T * T, mem_width * mem_height, CV_8U);
 
-  // Outer two for loops iterate over top-left T^2 starting pixels
-  int index = 0;
-  for (int r_start = 0; r_start < T; ++r_start)
-  {
-    for (int c_start = 0; c_start < T; ++c_start)
+    // Outer two for loops iterate over top-left T^2 starting pixels
+    int index = 0;
+    for (int r_start = 0; r_start < T; ++r_start)
     {
-      uchar* memory = linearized.ptr(index);
-      ++index;
+        for (int c_start = 0; c_start < T; ++c_start)
+        {
+            uchar *memory = linearized.ptr(index);
+            ++index;
 
-      // Inner two loops copy every T-th pixel into the linear memory
-      for (int r = r_start; r < response_map.rows; r += T)
-      {
-        const uchar* response_data = response_map.ptr(r);
-        for (int c = c_start; c < response_map.cols; c += T)
-          *memory++ = response_data[c];
-      }
+            // Inner two loops copy every T-th pixel into the linear memory
+            for (int r = r_start; r < response_map.rows; r += T)
+            {
+                const uchar *response_data = response_map.ptr(r);
+                for (int c = c_start; c < response_map.cols; c += T)
+                    *memory++ = response_data[c];
+            }
+        }
     }
-  }
 }
 /****************************************************************************************\
-*                               Linearized similarities                                  *
+*                                                             Linearized similarities                                                                    *
 \****************************************************************************************/
 
-static const unsigned char* accessLinearMemory(const std::vector<Mat>& linear_memories,
-          const Feature& f, int T, int W)
+static const unsigned char *accessLinearMemory(const std::vector<Mat> &linear_memories,
+                                               const Feature &f, int T, int W)
 {
-  // Retrieve the TxT grid of linear memories associated with the feature label
-  const Mat& memory_grid = linear_memories[f.label];
-  CV_DbgAssert(memory_grid.rows == T*T);
-  CV_DbgAssert(f.x >= 0);
-  CV_DbgAssert(f.y >= 0);
-  // The LM we want is at (x%T, y%T) in the TxT grid (stored as the rows of memory_grid)
-  int grid_x = f.x % T;
-  int grid_y = f.y % T;
-  int grid_index = grid_y * T + grid_x;
-  CV_DbgAssert(grid_index >= 0);
-  CV_DbgAssert(grid_index < memory_grid.rows);
-  const unsigned char* memory = memory_grid.ptr(grid_index);
-  // Within the LM, the feature is at (x/T, y/T). W is the "width" of the LM, the
-  // input image width decimated by T.
-  int lm_x = f.x / T;
-  int lm_y = f.y / T;
-  int lm_index = lm_y * W + lm_x;
-  CV_DbgAssert(lm_index >= 0);
-  CV_DbgAssert(lm_index < memory_grid.cols);
-  return memory + lm_index;
+    // Retrieve the TxT grid of linear memories associated with the feature label
+    const Mat &memory_grid = linear_memories[f.label];
+    CV_DbgAssert(memory_grid.rows == T * T);
+    CV_DbgAssert(f.x >= 0);
+    CV_DbgAssert(f.y >= 0);
+    // The LM we want is at (x%T, y%T) in the TxT grid (stored as the rows of memory_grid)
+    int grid_x = f.x % T;
+    int grid_y = f.y % T;
+    int grid_index = grid_y * T + grid_x;
+    CV_DbgAssert(grid_index >= 0);
+    CV_DbgAssert(grid_index < memory_grid.rows);
+    const unsigned char *memory = memory_grid.ptr(grid_index);
+    // Within the LM, the feature is at (x/T, y/T). W is the "width" of the LM, the
+    // input image width decimated by T.
+    int lm_x = f.x / T;
+    int lm_y = f.y / T;
+    int lm_index = lm_y * W + lm_x;
+    CV_DbgAssert(lm_index >= 0);
+    CV_DbgAssert(lm_index < memory_grid.cols);
+    return memory + lm_index;
 }
 
-static void similarity(const std::vector<Mat>& linear_memories, const Template& templ,
-                Mat& dst, Size size, int T)
+static void similarity(const std::vector<Mat> &linear_memories, const Template &templ,
+                       Mat &dst, Size size, int T)
 {
-  // 63 features or less is a special case because the max similarity per-feature is 4.
-  // 255/4 = 63, so up to that many we can add up similarities in 8 bits without worrying
-  // about overflow. Therefore here we use _mm_add_epi8 as the workhorse, whereas a more
-  // general function would use _mm_add_epi16.
-  CV_Assert(templ.features.size() <= 8191);
-  /// @todo Handle more than 255/MAX_RESPONSE features!!
+    CV_Assert(templ.features.size() <= 8191);
+    /// @todo Handle more than 255/MAX_RESPONSE features!!
 
-  // Decimate input image size by factor of T
-  int W = size.width / T;
-  int H = size.height / T;
+    // Decimate input image size by factor of T
+    int W = size.width / T;
+    int H = size.height / T;
 
-  // Feature dimensions, decimated by factor T and rounded up
-  int wf = (templ.width - 1) / T + 1;
-  int hf = (templ.height - 1) / T + 1;
+    // Feature dimensions, decimated by factor T and rounded up
+    int wf = (templ.width - 1) / T + 1;
+    int hf = (templ.height - 1) / T + 1;
 
-  // Span is the range over which we can shift the template around the input image
-  int span_x = W - wf;
-  int span_y = H - hf;
+    // Span is the range over which we can shift the template around the input image
+    int span_x = W - wf;
+    int span_y = H - hf;
 
-  // Compute number of contiguous (in memory) pixels to check when sliding feature over
-  // image. This allows template to wrap around left/right border incorrectly, so any
-  // wrapped template matches must be filtered out!
-  int template_positions = span_y * W + span_x + 1; // why add 1?
-  //int template_positions = (span_y - 1) * W + span_x; // More correct?
+    int template_positions = span_y * W + span_x + 1; // why add 1?
 
-  /// @todo In old code, dst is buffer of size m_U. Could make it something like
-  /// (span_x)x(span_y) instead?
-  dst = Mat::zeros(H, W, CV_16U);
-  short* dst_ptr = dst.ptr<short>();
+    dst = Mat::zeros(H, W, CV_16U);
+    short *dst_ptr = dst.ptr<short>();
 
 #if CV_SSE2
-  volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
+    volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
 #endif
 
-  // Compute the similarity measure for this template by accumulating the contribution of
-  // each feature
-  for (int i = 0; i < (int)templ.features.size(); ++i)
-  {
-    // Add the linear memory at the appropriate offset computed from the location of
-    // the feature in the template
-    Feature f = templ.features[i];
-    // Discard feature if out of bounds
-    /// @todo Shouldn't actually see x or y < 0 here?
-    if (f.x < 0 || f.x >= size.width || f.y < 0 || f.y >= size.height)
-      continue;
-    const uchar* lm_ptr = accessLinearMemory(linear_memories, f, T, W);
-
-    // Now we do an aligned/unaligned add of dst_ptr and lm_ptr with template_positions elements
-    int j = 0;
-    // Process responses 16 at a time if vectorization possible
-#if CV_SSE2
-    if (haveSSE2)
+    for (int i = 0; i < (int)templ.features.size(); ++i)
     {
-      __m128i const zero = _mm_setzero_si128();
-      // Fall back to MOVDQU
-      for ( ; j < template_positions - 7; j += 8)
-      {
-        __m128i responses = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(lm_ptr + j));
-        __m128i* dst_ptr_sse = reinterpret_cast<__m128i*>(dst_ptr + j);
-        responses = _mm_unpacklo_epi8(responses, zero);
-        *dst_ptr_sse = _mm_add_epi16(*dst_ptr_sse, responses);
-      }
-    }
+
+        Feature f = templ.features[i];
+
+        if (f.x < 0 || f.x >= size.width || f.y < 0 || f.y >= size.height)
+            continue;
+        const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
+
+        // Now we do an aligned/unaligned add of dst_ptr and lm_ptr with template_positions elements
+        int j = 0;
+        // Process responses 16 at a time if vectorization possible
+#if CV_SSE2
+        if (haveSSE2)
+        {
+            __m128i const zero = _mm_setzero_si128();
+            // Fall back to MOVDQU
+            for (; j < template_positions - 7; j += 8)
+            {
+                __m128i responses = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(lm_ptr + j));
+                __m128i *dst_ptr_sse = reinterpret_cast<__m128i *>(dst_ptr + j);
+                responses = _mm_unpacklo_epi8(responses, zero);
+                *dst_ptr_sse = _mm_add_epi16(*dst_ptr_sse, responses);
+            }
+        }
 #endif
-    for ( ; j < template_positions; ++j)
-      dst_ptr[j] = short(dst_ptr[j] + short(lm_ptr[j]));
-  }
+        for (; j < template_positions; ++j)
+            dst_ptr[j] = short(dst_ptr[j] + short(lm_ptr[j]));
+    }
 }
 
-
-static void similarityLocal(const std::vector<Mat>& linear_memories, const Template& templ,
-                     Mat& dst, Size size, int T, Point center)
+static void similarityLocal(const std::vector<Mat> &linear_memories, const Template &templ,
+                            Mat &dst, Size size, int T, Point center)
 {
-  // Similar to whole-image similarity() above. This version takes a position 'center'
-  // and computes the energy in the 16x16 patch centered on it.
-  CV_Assert(templ.features.size() <= 8191);
+    CV_Assert(templ.features.size() <= 8191);
 
-  // Compute the similarity map in a 16x16 patch around center
-  int W = size.width / T;
-  dst = Mat::zeros(16, 16, CV_16U);
+    int W = size.width / T;
+    dst = Mat::zeros(16, 16, CV_16U);
 
-  // Offset each feature point by the requested center. Further adjust to (-8,-8) from the
-  // center to get the top-left corner of the 16x16 patch.
-  // NOTE: We make the offsets multiples of T to agree with results of the original code.
-  int offset_x = (center.x / T - 8) * T;
-  int offset_y = (center.y / T - 8) * T;
+    int offset_x = (center.x / T - 8) * T;
+    int offset_y = (center.y / T - 8) * T;
 
 #if CV_SSE2
-  volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
-  __m128i* dst_ptr_sse = dst.ptr<__m128i>();
+    volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
+    __m128i *dst_ptr_sse = dst.ptr<__m128i>();
 #endif
 
-  for (int i = 0; i < (int)templ.features.size(); ++i)
-  {
-    Feature f = templ.features[i];
-    f.x += offset_x;
-    f.y += offset_y;
-    // Discard feature if out of bounds, possibly due to applying the offset
-    if (f.x < 0 || f.y < 0 || f.x >= size.width || f.y >= size.height)
-      continue;
+    for (int i = 0; i < (int)templ.features.size(); ++i)
+    {
+        Feature f = templ.features[i];
+        f.x += offset_x;
+        f.y += offset_y;
+        // Discard feature if out of bounds, possibly due to applying the offset
+        if (f.x < 0 || f.y < 0 || f.x >= size.width || f.y >= size.height)
+            continue;
 
-    const uchar* lm_ptr = accessLinearMemory(linear_memories, f, T, W);
+        const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
 
-    // Process whole row at a time if vectorization possible
+        // Process whole row at a time if vectorization possible
 #if CV_SSE2
-    if (haveSSE2)
-    {
-      __m128i const zero = _mm_setzero_si128();
-      for (int row = 0; row < 16; ++row)
-      {
-        __m128i aligned_low = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(lm_ptr));
-        __m128i aligned_high = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(lm_ptr+8));
-        aligned_low = _mm_unpacklo_epi8(aligned_low, zero);
-        aligned_high = _mm_unpacklo_epi8(aligned_high, zero);
-        dst_ptr_sse[2*row] = _mm_add_epi16(dst_ptr_sse[2*row], aligned_low);
-        dst_ptr_sse[2*row+1] = _mm_add_epi16(dst_ptr_sse[2*row+1], aligned_high);
-        lm_ptr += W; // Step to next row
-      }
-    }
-    else
+        if (haveSSE2)
+        {
+            __m128i const zero = _mm_setzero_si128();
+            for (int row = 0; row < 16; ++row)
+            {
+                __m128i aligned_low = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(lm_ptr));
+                __m128i aligned_high = _mm_loadl_epi64(reinterpret_cast<const __m128i *>(lm_ptr + 8));
+                aligned_low = _mm_unpacklo_epi8(aligned_low, zero);
+                aligned_high = _mm_unpacklo_epi8(aligned_high, zero);
+                dst_ptr_sse[2 * row] = _mm_add_epi16(dst_ptr_sse[2 * row], aligned_low);
+                dst_ptr_sse[2 * row + 1] = _mm_add_epi16(dst_ptr_sse[2 * row + 1], aligned_high);
+                lm_ptr += W; // Step to next row
+            }
+        }
+        else
 #endif
-    {
-      short* dst_ptr = dst.ptr<short>();
-      for (int row = 0; row < 16; ++row)
-      {
-        for (int col = 0; col < 16; ++col)
-          dst_ptr[col] = short(dst_ptr[col] + short(lm_ptr[col]));
-        dst_ptr += 16;
-        lm_ptr += W;
-      }
+        {
+            short *dst_ptr = dst.ptr<short>();
+            for (int row = 0; row < 16; ++row)
+            {
+                for (int col = 0; col < 16; ++col)
+                    dst_ptr[col] = short(dst_ptr[col] + short(lm_ptr[col]));
+                dst_ptr += 16;
+                lm_ptr += W;
+            }
+        }
     }
-  }
 }
 
-static void similarity_64(const std::vector<Mat>& linear_memories, const Template& templ,
-                Mat& dst, Size size, int T)
+static void similarity_64(const std::vector<Mat> &linear_memories, const Template &templ,
+                          Mat &dst, Size size, int T)
 {
-  // 63 features or less is a special case because the max similarity per-feature is 4.
-  // 255/4 = 63, so up to that many we can add up similarities in 8 bits without worrying
-  // about overflow. Therefore here we use _mm_add_epi8 as the workhorse, whereas a more
-  // general function would use _mm_add_epi16.
-  CV_Assert(templ.features.size() <= 63);
-  /// @todo Handle more than 255/MAX_RESPONSE features!!
+    // 63 features or less is a special case because the max similarity per-feature is 4.
+    // 255/4 = 63, so up to that many we can add up similarities in 8 bits without worrying
+    // about overflow. Therefore here we use _mm_add_epi8 as the workhorse, whereas a more
+    // general function would use _mm_add_epi16.
+    CV_Assert(templ.features.size() <= 63);
+    /// @todo Handle more than 255/MAX_RESPONSE features!!
 
-  // Decimate input image size by factor of T
-  int W = size.width / T;
-  int H = size.height / T;
+    // Decimate input image size by factor of T
+    int W = size.width / T;
+    int H = size.height / T;
 
-  // Feature dimensions, decimated by factor T and rounded up
-  int wf = (templ.width - 1) / T + 1;
-  int hf = (templ.height - 1) / T + 1;
+    // Feature dimensions, decimated by factor T and rounded up
+    int wf = (templ.width - 1) / T + 1;
+    int hf = (templ.height - 1) / T + 1;
 
-  // Span is the range over which we can shift the template around the input image
-  int span_x = W - wf;
-  int span_y = H - hf;
+    // Span is the range over which we can shift the template around the input image
+    int span_x = W - wf;
+    int span_y = H - hf;
 
-  // Compute number of contiguous (in memory) pixels to check when sliding feature over
-  // image. This allows template to wrap around left/right border incorrectly, so any
-  // wrapped template matches must be filtered out!
-  int template_positions = span_y * W + span_x + 1; // why add 1?
-  //int template_positions = (span_y - 1) * W + span_x; // More correct?
+    // Compute number of contiguous (in memory) pixels to check when sliding feature over
+    // image. This allows template to wrap around left/right border incorrectly, so any
+    // wrapped template matches must be filtered out!
+    int template_positions = span_y * W + span_x + 1; // why add 1?
+    //int template_positions = (span_y - 1) * W + span_x; // More correct?
 
-  /// @todo In old code, dst is buffer of size m_U. Could make it something like
-  /// (span_x)x(span_y) instead?
-  dst = Mat::zeros(H, W, CV_8U);
-  uchar* dst_ptr = dst.ptr<uchar>();
+    /// @todo In old code, dst is buffer of size m_U. Could make it something like
+    /// (span_x)x(span_y) instead?
+    dst = Mat::zeros(H, W, CV_8U);
+    uchar *dst_ptr = dst.ptr<uchar>();
 
 #if CV_SSE2
-  volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
+    volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
 #if CV_SSE3
-  volatile bool haveSSE3 = checkHardwareSupport(CV_CPU_SSE3);
+    volatile bool haveSSE3 = checkHardwareSupport(CV_CPU_SSE3);
 #endif
 #endif
 
-  // Compute the similarity measure for this template by accumulating the contribution of
-  // each feature
-  for (int i = 0; i < (int)templ.features.size(); ++i)
-  {
-    // Add the linear memory at the appropriate offset computed from the location of
-    // the feature in the template
-    Feature f = templ.features[i];
-    // Discard feature if out of bounds
-    /// @todo Shouldn't actually see x or y < 0 here?
-    if (f.x < 0 || f.x >= size.width || f.y < 0 || f.y >= size.height)
-      continue;
-    const uchar* lm_ptr = accessLinearMemory(linear_memories, f, T, W);
+    // Compute the similarity measure for this template by accumulating the contribution of
+    // each feature
+    for (int i = 0; i < (int)templ.features.size(); ++i)
+    {
+        // Add the linear memory at the appropriate offset computed from the location of
+        // the feature in the template
+        Feature f = templ.features[i];
+        // Discard feature if out of bounds
+        /// @todo Shouldn't actually see x or y < 0 here?
+        if (f.x < 0 || f.x >= size.width || f.y < 0 || f.y >= size.height)
+            continue;
+        const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
 
-    // Now we do an aligned/unaligned add of dst_ptr and lm_ptr with template_positions elements
-    int j = 0;
-    // Process responses 16 at a time if vectorization possible
+        // Now we do an aligned/unaligned add of dst_ptr and lm_ptr with template_positions elements
+        int j = 0;
+        // Process responses 16 at a time if vectorization possible
 #if CV_SSE2
 #if CV_SSE3
-    if (haveSSE3)
-    {
-      // LDDQU may be more efficient than MOVDQU for unaligned load of next 16 responses
-      for ( ; j < template_positions - 15; j += 16)
-      {
-        __m128i responses = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(lm_ptr + j));
-        __m128i* dst_ptr_sse = reinterpret_cast<__m128i*>(dst_ptr + j);
-        *dst_ptr_sse = _mm_add_epi8(*dst_ptr_sse, responses);
-      }
-    }
-    else
+        if (haveSSE3)
+        {
+            // LDDQU may be more efficient than MOVDQU for unaligned load of next 16 responses
+            for (; j < template_positions - 15; j += 16)
+            {
+                __m128i responses = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(lm_ptr + j));
+                __m128i *dst_ptr_sse = reinterpret_cast<__m128i *>(dst_ptr + j);
+                *dst_ptr_sse = _mm_add_epi8(*dst_ptr_sse, responses);
+            }
+        }
+        else
 #endif
-    if (haveSSE2)
-    {
-      // Fall back to MOVDQU
-      for ( ; j < template_positions - 15; j += 16)
-      {
-        __m128i responses = _mm_loadu_si128(reinterpret_cast<const __m128i*>(lm_ptr + j));
-        __m128i* dst_ptr_sse = reinterpret_cast<__m128i*>(dst_ptr + j);
-        *dst_ptr_sse = _mm_add_epi8(*dst_ptr_sse, responses);
-      }
-    }
+            if (haveSSE2)
+        {
+            // Fall back to MOVDQU
+            for (; j < template_positions - 15; j += 16)
+            {
+                __m128i responses = _mm_loadu_si128(reinterpret_cast<const __m128i *>(lm_ptr + j));
+                __m128i *dst_ptr_sse = reinterpret_cast<__m128i *>(dst_ptr + j);
+                *dst_ptr_sse = _mm_add_epi8(*dst_ptr_sse, responses);
+            }
+        }
 #endif
-    for ( ; j < template_positions; ++j)
-      dst_ptr[j] = uchar(dst_ptr[j] + lm_ptr[j]);
-  }
+        for (; j < template_positions; ++j)
+            dst_ptr[j] = uchar(dst_ptr[j] + lm_ptr[j]);
+    }
 }
 
-static void similarityLocal_64(const std::vector<Mat>& linear_memories, const Template& templ,
-                     Mat& dst, Size size, int T, Point center)
+static void similarityLocal_64(const std::vector<Mat> &linear_memories, const Template &templ,
+                               Mat &dst, Size size, int T, Point center)
 {
-  // Similar to whole-image similarity() above. This version takes a position 'center'
-  // and computes the energy in the 16x16 patch centered on it.
-  CV_Assert(templ.features.size() <= 63);
+    // Similar to whole-image similarity() above. This version takes a position 'center'
+    // and computes the energy in the 16x16 patch centered on it.
+    CV_Assert(templ.features.size() <= 63);
 
-  // Compute the similarity map in a 16x16 patch around center
-  int W = size.width / T;
-  dst = Mat::zeros(16, 16, CV_8U);
+    // Compute the similarity map in a 16x16 patch around center
+    int W = size.width / T;
+    dst = Mat::zeros(16, 16, CV_8U);
 
-  // Offset each feature point by the requested center. Further adjust to (-8,-8) from the
-  // center to get the top-left corner of the 16x16 patch.
-  // NOTE: We make the offsets multiples of T to agree with results of the original code.
-  int offset_x = (center.x / T - 8) * T;
-  int offset_y = (center.y / T - 8) * T;
+    // Offset each feature point by the requested center. Further adjust to (-8,-8) from the
+    // center to get the top-left corner of the 16x16 patch.
+    // NOTE: We make the offsets multiples of T to agree with results of the original code.
+    int offset_x = (center.x / T - 8) * T;
+    int offset_y = (center.y / T - 8) * T;
 
 #if CV_SSE2
-  volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
+    volatile bool haveSSE2 = checkHardwareSupport(CV_CPU_SSE2);
 #if CV_SSE3
-  volatile bool haveSSE3 = checkHardwareSupport(CV_CPU_SSE3);
+    volatile bool haveSSE3 = checkHardwareSupport(CV_CPU_SSE3);
 #endif
-  __m128i* dst_ptr_sse = dst.ptr<__m128i>();
+    __m128i *dst_ptr_sse = dst.ptr<__m128i>();
 #endif
 
-  for (int i = 0; i < (int)templ.features.size(); ++i)
-  {
-    Feature f = templ.features[i];
-    f.x += offset_x;
-    f.y += offset_y;
-    // Discard feature if out of bounds, possibly due to applying the offset
-    if (f.x < 0 || f.y < 0 || f.x >= size.width || f.y >= size.height)
-      continue;
+    for (int i = 0; i < (int)templ.features.size(); ++i)
+    {
+        Feature f = templ.features[i];
+        f.x += offset_x;
+        f.y += offset_y;
+        // Discard feature if out of bounds, possibly due to applying the offset
+        if (f.x < 0 || f.y < 0 || f.x >= size.width || f.y >= size.height)
+            continue;
 
-    const uchar* lm_ptr = accessLinearMemory(linear_memories, f, T, W);
+        const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
 
-    // Process whole row at a time if vectorization possible
+        // Process whole row at a time if vectorization possible
 #if CV_SSE2
 #if CV_SSE3
-    if (haveSSE3)
-    {
-      // LDDQU may be more efficient than MOVDQU for unaligned load of 16 responses from current row
-      for (int row = 0; row < 16; ++row)
-      {
-        __m128i aligned = _mm_lddqu_si128(reinterpret_cast<const __m128i*>(lm_ptr));
-        dst_ptr_sse[row] = _mm_add_epi8(dst_ptr_sse[row], aligned);
-        lm_ptr += W; // Step to next row
-      }
-    }
-    else
+        if (haveSSE3)
+        {
+            // LDDQU may be more efficient than MOVDQU for unaligned load of 16 responses from current row
+            for (int row = 0; row < 16; ++row)
+            {
+                __m128i aligned = _mm_lddqu_si128(reinterpret_cast<const __m128i *>(lm_ptr));
+                dst_ptr_sse[row] = _mm_add_epi8(dst_ptr_sse[row], aligned);
+                lm_ptr += W; // Step to next row
+            }
+        }
+        else
 #endif
-    if (haveSSE2)
-    {
-      // Fall back to MOVDQU
-      for (int row = 0; row < 16; ++row)
-      {
-        __m128i aligned = _mm_loadu_si128(reinterpret_cast<const __m128i*>(lm_ptr));
-        dst_ptr_sse[row] = _mm_add_epi8(dst_ptr_sse[row], aligned);
-        lm_ptr += W; // Step to next row
-      }
-    }
-    else
+            if (haveSSE2)
+        {
+            // Fall back to MOVDQU
+            for (int row = 0; row < 16; ++row)
+            {
+                __m128i aligned = _mm_loadu_si128(reinterpret_cast<const __m128i *>(lm_ptr));
+                dst_ptr_sse[row] = _mm_add_epi8(dst_ptr_sse[row], aligned);
+                lm_ptr += W; // Step to next row
+            }
+        }
+        else
 #endif
-    {
-      uchar* dst_ptr = dst.ptr<uchar>();
-      for (int row = 0; row < 16; ++row)
-      {
-        for (int col = 0; col < 16; ++col)
-          dst_ptr[col] = uchar(dst_ptr[col] + lm_ptr[col]);
-        dst_ptr += 16;
-        lm_ptr += W;
-      }
+        {
+            uchar *dst_ptr = dst.ptr<uchar>();
+            for (int row = 0; row < 16; ++row)
+            {
+                for (int col = 0; col < 16; ++col)
+                    dst_ptr[col] = uchar(dst_ptr[col] + lm_ptr[col]);
+                dst_ptr += 16;
+                lm_ptr += W;
+            }
+        }
     }
-  }
 }
 
 /****************************************************************************************\
-*                               High-level Detector API                                  *
+*                                                             High-level Detector API                                                                    *
 \****************************************************************************************/
 
 Detector::Detector()
@@ -1002,410 +993,428 @@ Detector::Detector(std::vector<int> T)
 
 Detector::Detector(int num_features, std::vector<int> T)
 {
-    this->modality= makePtr<ColorGradient>(10.0f, num_features, 55.0f);
+    this->modality = makePtr<ColorGradient>(10.0f, num_features, 55.0f);
     pyramid_levels = T.size();
     T_at_level = T;
 }
 
 std::vector<Match> Detector::match(Mat source, float threshold,
-                      const std::vector<std::string>& class_ids, const Mat mask) const
+                                   const std::vector<std::string> &class_ids, const Mat mask) const
 {
     std::vector<Match> matches;
 
-  // Initialize each ColorGradient with our sources
-  std::vector< Ptr<ColorGradientPyramid> > quantizers;
-  CV_Assert(mask.empty() || mask.size() == source.size());
-  quantizers.push_back(modality->process(source, mask));
+    // Initialize each ColorGradient with our sources
+    std::vector<Ptr<ColorGradientPyramid>> quantizers;
+    CV_Assert(mask.empty() || mask.size() == source.size());
+    quantizers.push_back(modality->process(source, mask));
 
-  // pyramid level -> ColorGradient -> quantization
-  LinearMemoryPyramid lm_pyramid(pyramid_levels,
-                                 std::vector<LinearMemories>(1, LinearMemories(8)));
+    // pyramid level -> ColorGradient -> quantization
+    LinearMemoryPyramid lm_pyramid(pyramid_levels,
+                                   std::vector<LinearMemories>(1, LinearMemories(8)));
 
-  // For each pyramid level, precompute linear memories for each ColorGradient
-  std::vector<Size> sizes;
-  for (int l = 0; l < pyramid_levels; ++l)
-  {
-    int T = T_at_level[l];
-    std::vector<LinearMemories>& lm_level = lm_pyramid[l];
-
-    if (l > 0)
+    // For each pyramid level, precompute linear memories for each ColorGradient
+    std::vector<Size> sizes;
+    for (int l = 0; l < pyramid_levels; ++l)
     {
-      for (int i = 0; i < (int)quantizers.size(); ++i)
-        quantizers[i]->pyrDown();
+        int T = T_at_level[l];
+        std::vector<LinearMemories> &lm_level = lm_pyramid[l];
+
+        if (l > 0)
+        {
+            for (int i = 0; i < (int)quantizers.size(); ++i)
+                quantizers[i]->pyrDown();
+        }
+
+        Mat quantized, spread_quantized;
+        std::vector<Mat> response_maps;
+        for (int i = 0; i < (int)quantizers.size(); ++i)
+        {
+            quantizers[i]->quantize(quantized);
+            spread(quantized, spread_quantized, T);
+            computeResponseMaps(spread_quantized, response_maps);
+
+            LinearMemories &memories = lm_level[i];
+            for (int j = 0; j < 8; ++j)
+                linearize(response_maps[j], memories[j], T);
+        }
+
+        sizes.push_back(quantized.size());
+    }
+    if (class_ids.empty())
+    {
+        // Match all templates
+        TemplatesMap::const_iterator it = class_templates.begin(), itend = class_templates.end();
+        for (; it != itend; ++it)
+            matchClass(lm_pyramid, sizes, threshold, matches, it->first, it->second);
+    }
+    else
+    {
+        // Match only templates for the requested class IDs
+        for (int i = 0; i < (int)class_ids.size(); ++i)
+        {
+            TemplatesMap::const_iterator it = class_templates.find(class_ids[i]);
+            if (it != class_templates.end())
+                matchClass(lm_pyramid, sizes, threshold, matches, it->first, it->second);
+        }
     }
 
-    Mat quantized, spread_quantized;
-    std::vector<Mat> response_maps;
-    for (int i = 0; i < (int)quantizers.size(); ++i)
-    {
-      quantizers[i]->quantize(quantized);
-      spread(quantized, spread_quantized, T);
-      computeResponseMaps(spread_quantized, response_maps);
+    // Sort matches by similarity, and prune any duplicates introduced by pyramid refinement
+    std::sort(matches.begin(), matches.end());
+    std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
+    matches.erase(new_end, matches.end());
 
-      LinearMemories& memories = lm_level[i];
-      for (int j = 0; j < 8; ++j)
-        linearize(response_maps[j], memories[j], T);
-    }
-
-    sizes.push_back(quantized.size());
-  }
-  if (class_ids.empty())
-  {
-    // Match all templates
-    TemplatesMap::const_iterator it = class_templates.begin(), itend = class_templates.end();
-    for ( ; it != itend; ++it)
-      matchClass(lm_pyramid, sizes, threshold, matches, it->first, it->second);
-  }
-  else
-  {
-    // Match only templates for the requested class IDs
-    for (int i = 0; i < (int)class_ids.size(); ++i)
-    {
-      TemplatesMap::const_iterator it = class_templates.find(class_ids[i]);
-      if (it != class_templates.end())
-        matchClass(lm_pyramid, sizes, threshold, matches, it->first, it->second);
-    }
-  }
-
-  // Sort matches by similarity, and prune any duplicates introduced by pyramid refinement
-  std::sort(matches.begin(), matches.end());
-  std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
-  matches.erase(new_end, matches.end());
-
-  return matches;
+    return matches;
 }
-
 
 // Used to filter out weak matches
 struct MatchPredicate
 {
-  MatchPredicate(float _threshold) : threshold(_threshold) {}
-  bool operator() (const Match& m) { return m.similarity < threshold; }
-  float threshold;
+    MatchPredicate(float _threshold) : threshold(_threshold) {}
+    bool operator()(const Match &m) { return m.similarity < threshold; }
+    float threshold;
 };
 
-void Detector::matchClass(const LinearMemoryPyramid& lm_pyramid,
-                          const std::vector<Size>& sizes,
-                          float threshold, std::vector<Match>& matches,
-                          const std::string& class_id,
-                          const std::vector<TemplatePyramid>& template_pyramids) const
+void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
+                          const std::vector<Size> &sizes,
+                          float threshold, std::vector<Match> &matches,
+                          const std::string &class_id,
+                          const std::vector<TemplatePyramid> &template_pyramids) const
 {
-    for (size_t template_id = 0; template_id < template_pyramids.size(); ++template_id){
-      const TemplatePyramid& tp = template_pyramids[template_id];
-      // First match over the whole image at the lowest pyramid level
-      /// @todo Factor this out into separate function
-      const std::vector<LinearMemories>& lowest_lm = lm_pyramid.back();
+    for (size_t template_id = 0; template_id < template_pyramids.size(); ++template_id)
+    {
+        const TemplatePyramid &tp = template_pyramids[template_id];
+        // First match over the whole image at the lowest pyramid level
+        /// @todo Factor this out into separate function
+        const std::vector<LinearMemories> &lowest_lm = lm_pyramid.back();
 
-      // Compute similarity maps for each ColorGradient at lowest pyramid level
-      Mat similarities;
-      int lowest_start = static_cast<int>(tp.size() - 1);
-      int lowest_T = T_at_level.back();
-      int num_features = 0;
-      int feature_64 = -1;
-      {
-        const Template& templ = tp[lowest_start];
-        num_features += static_cast<int>(templ.features.size());
-        if(feature_64<=0){
-            if(templ.features.size()<64){
-                feature_64 = 1;
-            }else if (templ.features.size()<8192) {
-                feature_64 = 2;
-            }
-        }
-        if(feature_64 == 1){
-            similarity_64(lowest_lm[0], templ, similarities, sizes.back(), lowest_T);
-        }else if (feature_64 == 2) {
-            similarity(lowest_lm[0], templ, similarities, sizes.back(), lowest_T);
-        }
-      }
-
-      Mat total_similarity;
-      if(feature_64 == 1){
-          similarities.convertTo(similarities, CV_16U);
-      }
-
-      // Find initial matches
-      std::vector<Match> candidates;
-      for (int r = 0; r < total_similarity.rows; ++r)
-      {
-        ushort* row = total_similarity.ptr<ushort>(r);
-        for (int c = 0; c < total_similarity.cols; ++c)
+        // Compute similarity maps for each ColorGradient at lowest pyramid level
+        Mat similarities;
+        int lowest_start = static_cast<int>(tp.size() - 1);
+        int lowest_T = T_at_level.back();
+        int num_features = 0;
+        int feature_64 = -1;
         {
-          int raw_score = row[c];
-          float score =(raw_score * 100.f) / (4 * num_features);
-
-          if (score > threshold)
-          {
-            int offset = lowest_T / 2 + (lowest_T % 2 - 1);
-            int x = c * lowest_T + offset;
-            int y = r * lowest_T + offset;
-            candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
-          }
-        }
-      }
-
-      // Locally refine each match by marching up the pyramid
-      for (int l = pyramid_levels - 2; l >= 0; --l)
-      {
-        const std::vector<LinearMemories>& lms = lm_pyramid[l];
-        int T = T_at_level[l];
-        int start = static_cast<int>(l);
-        Size size = sizes[l];
-        int border = 8 * T;
-        int offset = T / 2 + (T % 2 - 1);
-        int max_x = size.width - tp[start].width - border;
-        int max_y = size.height - tp[start].height - border;
-
-        Mat similarities2;
-        Mat total_similarity2;
-        for (int m = 0; m < (int)candidates.size(); ++m)
-        {
-          Match& match2 = candidates[m];
-          int x = match2.x * 2 + 1; /// @todo Support other pyramid distance
-          int y = match2.y * 2 + 1;
-
-          // Require 8 (reduced) row/cols to the up/left
-          x = std::max(x, border);
-          y = std::max(y, border);
-
-          // Require 8 (reduced) row/cols to the down/left, plus the template size
-          x = std::min(x, max_x);
-          y = std::min(y, max_y);
-
-          // Compute local similarity maps for each ColorGradient
-          int numFeatures = 0;
-          feature_64 = -1;
-          {
-            const Template& templ = tp[start];
-            numFeatures += static_cast<int>(templ.features.size());
-            if(feature_64<=0){
-                if(templ.features.size()<64){
+            const Template &templ = tp[lowest_start];
+            num_features += static_cast<int>(templ.features.size());
+            if (feature_64 <= 0)
+            {
+                if (templ.features.size() < 64)
+                {
                     feature_64 = 1;
-                }else if (templ.features.size()<8192) {
+                }
+                else if (templ.features.size() < 8192)
+                {
                     feature_64 = 2;
                 }
             }
-            if(feature_64 == 1){
-                similarityLocal_64(lms[0], templ, similarities2, size, T, Point(x, y));
-            }else if (feature_64 == 2) {
-                similarityLocal(lms[0], templ, similarities2, size, T, Point(x, y));
-            }
-          }
-
-          if(feature_64 == 1){
-              similarities.convertTo(similarities, CV_16U);
-          }
-
-          // Find best local adjustment
-          float best_score = 0;
-          int best_r = -1, best_c = -1;
-          for (int r = 0; r < total_similarity2.rows; ++r)
-          {
-            ushort* row = total_similarity2.ptr<ushort>(r);
-            for (int c = 0; c < total_similarity2.cols; ++c)
+            if (feature_64 == 1)
             {
-              int score_int = row[c];
-              float score = (score_int * 100.f) / (4 * numFeatures);
-
-              if (score > best_score)
-              {
-                best_score = score;
-                best_r = r;
-                best_c = c;
-              }
+                similarity_64(lowest_lm[0], templ, similarities, sizes.back(), lowest_T);
             }
-          }
-          // Update current match
-          match2.similarity = best_score;
-          match2.x = (x / T - 8 + best_c) * T + offset;
-          match2.y = (y / T - 8 + best_r) * T + offset;
+            else if (feature_64 == 2)
+            {
+                similarity(lowest_lm[0], templ, similarities, sizes.back(), lowest_T);
+            }
         }
 
-        // Filter out any matches that drop below the similarity threshold
-        std::vector<Match>::iterator new_end = std::remove_if(candidates.begin(), candidates.end(),
-                                                              MatchPredicate(threshold));
-        candidates.erase(new_end, candidates.end());
-      }
-      matches.insert(matches.end(), candidates.begin(), candidates.end());
+        Mat total_similarity;
+        if (feature_64 == 1)
+        {
+            similarities.convertTo(similarities, CV_16U);
+        }
+
+        // Find initial matches
+        std::vector<Match> candidates;
+        for (int r = 0; r < total_similarity.rows; ++r)
+        {
+            ushort *row = total_similarity.ptr<ushort>(r);
+            for (int c = 0; c < total_similarity.cols; ++c)
+            {
+                int raw_score = row[c];
+                float score = (raw_score * 100.f) / (4 * num_features);
+
+                if (score > threshold)
+                {
+                    int offset = lowest_T / 2 + (lowest_T % 2 - 1);
+                    int x = c * lowest_T + offset;
+                    int y = r * lowest_T + offset;
+                    candidates.push_back(Match(x, y, score, class_id, static_cast<int>(template_id)));
+                }
+            }
+        }
+
+        // Locally refine each match by marching up the pyramid
+        for (int l = pyramid_levels - 2; l >= 0; --l)
+        {
+            const std::vector<LinearMemories> &lms = lm_pyramid[l];
+            int T = T_at_level[l];
+            int start = static_cast<int>(l);
+            Size size = sizes[l];
+            int border = 8 * T;
+            int offset = T / 2 + (T % 2 - 1);
+            int max_x = size.width - tp[start].width - border;
+            int max_y = size.height - tp[start].height - border;
+
+            Mat similarities2;
+            Mat total_similarity2;
+            for (int m = 0; m < (int)candidates.size(); ++m)
+            {
+                Match &match2 = candidates[m];
+                int x = match2.x * 2 + 1; /// @todo Support other pyramid distance
+                int y = match2.y * 2 + 1;
+
+                // Require 8 (reduced) row/cols to the up/left
+                x = std::max(x, border);
+                y = std::max(y, border);
+
+                // Require 8 (reduced) row/cols to the down/left, plus the template size
+                x = std::min(x, max_x);
+                y = std::min(y, max_y);
+
+                // Compute local similarity maps for each ColorGradient
+                int numFeatures = 0;
+                feature_64 = -1;
+                {
+                    const Template &templ = tp[start];
+                    numFeatures += static_cast<int>(templ.features.size());
+                    if (feature_64 <= 0)
+                    {
+                        if (templ.features.size() < 64)
+                        {
+                            feature_64 = 1;
+                        }
+                        else if (templ.features.size() < 8192)
+                        {
+                            feature_64 = 2;
+                        }
+                    }
+                    if (feature_64 == 1)
+                    {
+                        similarityLocal_64(lms[0], templ, similarities2, size, T, Point(x, y));
+                    }
+                    else if (feature_64 == 2)
+                    {
+                        similarityLocal(lms[0], templ, similarities2, size, T, Point(x, y));
+                    }
+                }
+
+                if (feature_64 == 1)
+                {
+                    similarities.convertTo(similarities, CV_16U);
+                }
+
+                // Find best local adjustment
+                float best_score = 0;
+                int best_r = -1, best_c = -1;
+                for (int r = 0; r < total_similarity2.rows; ++r)
+                {
+                    ushort *row = total_similarity2.ptr<ushort>(r);
+                    for (int c = 0; c < total_similarity2.cols; ++c)
+                    {
+                        int score_int = row[c];
+                        float score = (score_int * 100.f) / (4 * numFeatures);
+
+                        if (score > best_score)
+                        {
+                            best_score = score;
+                            best_r = r;
+                            best_c = c;
+                        }
+                    }
+                }
+                // Update current match
+                match2.similarity = best_score;
+                match2.x = (x / T - 8 + best_c) * T + offset;
+                match2.y = (y / T - 8 + best_r) * T + offset;
+            }
+
+            // Filter out any matches that drop below the similarity threshold
+            std::vector<Match>::iterator new_end = std::remove_if(candidates.begin(), candidates.end(),
+                                                                  MatchPredicate(threshold));
+            candidates.erase(new_end, candidates.end());
+        }
+        matches.insert(matches.end(), candidates.begin(), candidates.end());
     }
 }
 
-int Detector::addTemplate(const std::vector<Mat>& sources, const std::string& class_id,
-                          const Mat& object_mask)
+int Detector::addTemplate(const std::vector<Mat> &sources, const std::string &class_id,
+                          const Mat &object_mask)
 {
-  int num_modalities = 1;
-  std::vector<TemplatePyramid>& template_pyramids = class_templates[class_id];
-  int template_id = static_cast<int>(template_pyramids.size());
+    int num_modalities = 1;
+    std::vector<TemplatePyramid> &template_pyramids = class_templates[class_id];
+    int template_id = static_cast<int>(template_pyramids.size());
 
-  TemplatePyramid tp;
-  tp.resize(num_modalities * pyramid_levels);
+    TemplatePyramid tp;
+    tp.resize(num_modalities * pyramid_levels);
 
-  {
-    // Extract a template at each pyramid level
-    Ptr<ColorGradientPyramid> qp = modality->process(sources, object_mask);
-    for (int l = 0; l < pyramid_levels; ++l)
     {
-      /// @todo Could do mask subsampling here instead of in pyrDown()
-      if (l > 0)
-        qp->pyrDown();
+        // Extract a template at each pyramid level
+        Ptr<ColorGradientPyramid> qp = modality->process(sources, object_mask);
+        for (int l = 0; l < pyramid_levels; ++l)
+        {
+            /// @todo Could do mask subsampling here instead of in pyrDown()
+            if (l > 0)
+                qp->pyrDown();
 
-      bool success = qp->extractTemplate(tp[l*num_modalities]);
-      if (!success)
-        return -1;
+            bool success = qp->extractTemplate(tp[l * num_modalities]);
+            if (!success)
+                return -1;
+        }
     }
-  }
 
-//  Rect bb =
-  cropTemplates(tp);
+    //    Rect bb =
+    cropTemplates(tp);
 
-  /// @todo Can probably avoid a copy of tp here with swap
-  template_pyramids.push_back(tp);
-  return template_id;
+    /// @todo Can probably avoid a copy of tp here with swap
+    template_pyramids.push_back(tp);
+    return template_id;
 }
-const std::vector<Template>& Detector::getTemplates(const std::string& class_id, int template_id) const
+const std::vector<Template> &Detector::getTemplates(const std::string &class_id, int template_id) const
 {
-  TemplatesMap::const_iterator i = class_templates.find(class_id);
-  CV_Assert(i != class_templates.end());
-  CV_Assert(i->second.size() > size_t(template_id));
-  return i->second[template_id];
+    TemplatesMap::const_iterator i = class_templates.find(class_id);
+    CV_Assert(i != class_templates.end());
+    CV_Assert(i->second.size() > size_t(template_id));
+    return i->second[template_id];
 }
 
 int Detector::numTemplates() const
 {
-  int ret = 0;
-  TemplatesMap::const_iterator i = class_templates.begin(), iend = class_templates.end();
-  for ( ; i != iend; ++i)
-    ret += static_cast<int>(i->second.size());
-  return ret;
+    int ret = 0;
+    TemplatesMap::const_iterator i = class_templates.begin(), iend = class_templates.end();
+    for (; i != iend; ++i)
+        ret += static_cast<int>(i->second.size());
+    return ret;
 }
 
-int Detector::numTemplates(const std::string& class_id) const
+int Detector::numTemplates(const std::string &class_id) const
 {
-  TemplatesMap::const_iterator i = class_templates.find(class_id);
-  if (i == class_templates.end())
-    return 0;
-  return static_cast<int>(i->second.size());
+    TemplatesMap::const_iterator i = class_templates.find(class_id);
+    if (i == class_templates.end())
+        return 0;
+    return static_cast<int>(i->second.size());
 }
 
 std::vector<std::string> Detector::classIds() const
 {
-  std::vector<std::string> ids;
-  TemplatesMap::const_iterator i = class_templates.begin(), iend = class_templates.end();
-  for ( ; i != iend; ++i)
-  {
-    ids.push_back(i->first);
-  }
+    std::vector<std::string> ids;
+    TemplatesMap::const_iterator i = class_templates.begin(), iend = class_templates.end();
+    for (; i != iend; ++i)
+    {
+        ids.push_back(i->first);
+    }
 
-  return ids;
+    return ids;
 }
 
-void Detector::read(const FileNode& fn)
+void Detector::read(const FileNode &fn)
 {
-  class_templates.clear();
-  pyramid_levels = fn["pyramid_levels"];
-  fn["T"] >> T_at_level;
+    class_templates.clear();
+    pyramid_levels = fn["pyramid_levels"];
+    fn["T"] >> T_at_level;
 
-  modality = makePtr<ColorGradient>();
+    modality = makePtr<ColorGradient>();
 }
 
-void Detector::write(FileStorage& fs) const
+void Detector::write(FileStorage &fs) const
 {
-  fs << "pyramid_levels" << pyramid_levels;
-  fs << "T" << T_at_level;
+    fs << "pyramid_levels" << pyramid_levels;
+    fs << "T" << T_at_level;
 
     modality->write(fs);
 }
 
-std::string Detector::readClass(const FileNode& fn, const std::string &class_id_override)
-  {
-  // Detector should not already have this class
+std::string Detector::readClass(const FileNode &fn, const std::string &class_id_override)
+{
+    // Detector should not already have this class
     String class_id;
     if (class_id_override.empty())
     {
-      String class_id_tmp = fn["class_id"];
-      CV_Assert(class_templates.find(class_id_tmp) == class_templates.end());
-      class_id = class_id_tmp;
+        String class_id_tmp = fn["class_id"];
+        CV_Assert(class_templates.find(class_id_tmp) == class_templates.end());
+        class_id = class_id_tmp;
     }
     else
     {
-      class_id = class_id_override;
+        class_id = class_id_override;
     }
 
-  TemplatesMap::value_type v(class_id, std::vector<TemplatePyramid>());
-  std::vector<TemplatePyramid>& tps = v.second;
-  int expected_id = 0;
+    TemplatesMap::value_type v(class_id, std::vector<TemplatePyramid>());
+    std::vector<TemplatePyramid> &tps = v.second;
+    int expected_id = 0;
 
-  FileNode tps_fn = fn["template_pyramids"];
-  tps.resize(tps_fn.size());
-  FileNodeIterator tps_it = tps_fn.begin(), tps_it_end = tps_fn.end();
-  for ( ; tps_it != tps_it_end; ++tps_it, ++expected_id)
-  {
-    int template_id = (*tps_it)["template_id"];
-    CV_Assert(template_id == expected_id);
-    FileNode templates_fn = (*tps_it)["templates"];
-    tps[template_id].resize(templates_fn.size());
-
-    FileNodeIterator templ_it = templates_fn.begin(), templ_it_end = templates_fn.end();
-    int idx = 0;
-    for ( ; templ_it != templ_it_end; ++templ_it)
+    FileNode tps_fn = fn["template_pyramids"];
+    tps.resize(tps_fn.size());
+    FileNodeIterator tps_it = tps_fn.begin(), tps_it_end = tps_fn.end();
+    for (; tps_it != tps_it_end; ++tps_it, ++expected_id)
     {
-      tps[template_id][idx++].read(*templ_it);
-    }
-  }
+        int template_id = (*tps_it)["template_id"];
+        CV_Assert(template_id == expected_id);
+        FileNode templates_fn = (*tps_it)["templates"];
+        tps[template_id].resize(templates_fn.size());
 
-  class_templates.insert(v);
-  return class_id;
+        FileNodeIterator templ_it = templates_fn.begin(), templ_it_end = templates_fn.end();
+        int idx = 0;
+        for (; templ_it != templ_it_end; ++templ_it)
+        {
+            tps[template_id][idx++].read(*templ_it);
+        }
+    }
+
+    class_templates.insert(v);
+    return class_id;
 }
 
-void Detector::writeClass(const std::string& class_id, FileStorage& fs) const
+void Detector::writeClass(const std::string &class_id, FileStorage &fs) const
 {
-  TemplatesMap::const_iterator it = class_templates.find(class_id);
-  CV_Assert(it != class_templates.end());
-  const std::vector<TemplatePyramid>& tps = it->second;
+    TemplatesMap::const_iterator it = class_templates.find(class_id);
+    CV_Assert(it != class_templates.end());
+    const std::vector<TemplatePyramid> &tps = it->second;
 
-  fs << "class_id" << it->first;
-  fs << "pyramid_levels" << pyramid_levels;
-  fs << "template_pyramids" << "[";
-  for (size_t i = 0; i < tps.size(); ++i)
-  {
-    const TemplatePyramid& tp = tps[i];
-    fs << "{";
-    fs << "template_id" << int(i); //TODO is this cast correct? won't be good if rolls over...
-    fs << "templates" << "[";
-    for (size_t j = 0; j < tp.size(); ++j)
+    fs << "class_id" << it->first;
+    fs << "pyramid_levels" << pyramid_levels;
+    fs << "template_pyramids"
+       << "[";
+    for (size_t i = 0; i < tps.size(); ++i)
     {
-      fs << "{";
-      tp[j].write(fs);
-      fs << "}"; // current template
+        const TemplatePyramid &tp = tps[i];
+        fs << "{";
+        fs << "template_id" << int(i); //TODO is this cast correct? won't be good if rolls over...
+        fs << "templates"
+           << "[";
+        for (size_t j = 0; j < tp.size(); ++j)
+        {
+            fs << "{";
+            tp[j].write(fs);
+            fs << "}"; // current template
+        }
+        fs << "]"; // templates
+        fs << "}"; // current pyramid
     }
-    fs << "]"; // templates
-    fs << "}"; // current pyramid
-  }
-  fs << "]"; // pyramids
+    fs << "]"; // pyramids
 }
 
-void Detector::readClasses(const std::vector<std::string>& class_ids,
-                           const std::string& format)
+void Detector::readClasses(const std::vector<std::string> &class_ids,
+                           const std::string &format)
 {
-  for (size_t i = 0; i < class_ids.size(); ++i)
-  {
-    const String& class_id = class_ids[i];
-    String filename = cv::format(format.c_str(), class_id.c_str());
-    FileStorage fs(filename, FileStorage::READ);
-    readClass(fs.root());
-  }
+    for (size_t i = 0; i < class_ids.size(); ++i)
+    {
+        const String &class_id = class_ids[i];
+        String filename = cv::format(format.c_str(), class_id.c_str());
+        FileStorage fs(filename, FileStorage::READ);
+        readClass(fs.root());
+    }
 }
 
-void Detector::writeClasses(const std::string& format) const
+void Detector::writeClasses(const std::string &format) const
 {
-  TemplatesMap::const_iterator it = class_templates.begin(), it_end = class_templates.end();
-  for ( ; it != it_end; ++it)
-  {
-    const String& class_id = it->first;
-    String filename = cv::format(format.c_str(), class_id.c_str());
-    FileStorage fs(filename, FileStorage::WRITE);
-    writeClass(class_id, fs);
-  }
+    TemplatesMap::const_iterator it = class_templates.begin(), it_end = class_templates.end();
+    for (; it != it_end; ++it)
+    {
+        const String &class_id = it->first;
+        String filename = cv::format(format.c_str(), class_id.c_str());
+        FileStorage fs(filename, FileStorage::WRITE);
+        writeClass(class_id, fs);
+    }
 }
 
-}
+} // namespace line2Dup
