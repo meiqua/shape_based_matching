@@ -388,7 +388,6 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
         subtract(mask, local_mask, local_mask);
     }
 
-    // Create sorted list of all pixels with magnitude greater than a threshold
     std::vector<Candidate> candidates;
     bool no_mask = local_mask.empty();
     float threshold_sq = strong_threshold * strong_threshold;
@@ -454,14 +453,6 @@ static const char CG_NAME[] = "ColorGradient";
 std::string ColorGradient::name() const
 {
     return CG_NAME;
-}
-
-Ptr<ColorGradientPyramid> ColorGradient::processImpl(const std::vector<cv::Mat> &src,
-                                                     const Mat &mask) const
-{
-
-    auto pd = makePtr<ColorGradientPyramid>(src[0], mask, weak_threshold, num_features, strong_threshold);
-    return pd;
 }
 
 void ColorGradient::read(const FileNode &fn)
@@ -697,7 +688,8 @@ static const unsigned char *accessLinearMemory(const std::vector<Mat> &linear_me
 static void similarity(const std::vector<Mat> &linear_memories, const Template &templ,
                        Mat &dst, Size size, int T)
 {
-    CV_Assert(templ.features.size() <= 8191);
+    // we only have one modality, so 8192*2
+    CV_Assert(templ.features.size() < 16384);
     /// @todo Handle more than 255/MAX_RESPONSE features!!
 
     // Decimate input image size by factor of T
@@ -732,7 +724,6 @@ static void similarity(const std::vector<Mat> &linear_memories, const Template &
 
         // Now we do an aligned/unaligned add of dst_ptr and lm_ptr with template_positions elements
         int j = 0;
-        // Process responses 16 at a time if vectorization possible
 #if CV_SSE2
         if (haveSSE2)
         {
@@ -755,7 +746,7 @@ static void similarity(const std::vector<Mat> &linear_memories, const Template &
 static void similarityLocal(const std::vector<Mat> &linear_memories, const Template &templ,
                             Mat &dst, Size size, int T, Point center)
 {
-    CV_Assert(templ.features.size() <= 8191);
+    CV_Assert(templ.features.size() < 16384);
 
     int W = size.width / T;
     dst = Mat::zeros(16, 16, CV_16U);
@@ -778,8 +769,6 @@ static void similarityLocal(const std::vector<Mat> &linear_memories, const Templ
             continue;
 
         const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
-
-        // Process whole row at a time if vectorization possible
 #if CV_SSE2
         if (haveSSE2)
         {
@@ -865,7 +854,6 @@ static void similarity_64(const std::vector<Mat> &linear_memories, const Templat
 
         // Now we do an aligned/unaligned add of dst_ptr and lm_ptr with template_positions elements
         int j = 0;
-        // Process responses 16 at a time if vectorization possible
 #if CV_SSE2
 #if CV_SSE3
         if (haveSSE3)
@@ -931,8 +919,6 @@ static void similarityLocal_64(const std::vector<Mat> &linear_memories, const Te
             continue;
 
         const uchar *lm_ptr = accessLinearMemory(linear_memories, f, T, W);
-
-        // Process whole row at a time if vectorization possible
 #if CV_SSE2
 #if CV_SSE3
         if (haveSSE3)
@@ -1102,7 +1088,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                 {
                     feature_64 = 1;
                 }
-                else if (templ.features.size() < 8192)
+                else if (templ.features.size() < 16384)
                 {
                     feature_64 = 2;
                 }
@@ -1117,7 +1103,6 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             }
         }
 
-        Mat total_similarity;
         if (feature_64 == 1)
         {
             similarities.convertTo(similarities, CV_16U);
@@ -1125,10 +1110,10 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
 
         // Find initial matches
         std::vector<Match> candidates;
-        for (int r = 0; r < total_similarity.rows; ++r)
+        for (int r = 0; r < similarities.rows; ++r)
         {
-            ushort *row = total_similarity.ptr<ushort>(r);
-            for (int c = 0; c < total_similarity.cols; ++c)
+            ushort *row = similarities.ptr<ushort>(r);
+            for (int c = 0; c < similarities.cols; ++c)
             {
                 int raw_score = row[c];
                 float score = (raw_score * 100.f) / (4 * num_features);
@@ -1156,7 +1141,6 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             int max_y = size.height - tp[start].height - border;
 
             Mat similarities2;
-            Mat total_similarity2;
             for (int m = 0; m < (int)candidates.size(); ++m)
             {
                 Match &match2 = candidates[m];
@@ -1183,7 +1167,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                         {
                             feature_64 = 1;
                         }
-                        else if (templ.features.size() < 8192)
+                        else if (templ.features.size() < 16384)
                         {
                             feature_64 = 2;
                         }
@@ -1200,16 +1184,16 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
 
                 if (feature_64 == 1)
                 {
-                    similarities.convertTo(similarities, CV_16U);
+                    similarities2.convertTo(similarities2, CV_16U);
                 }
 
                 // Find best local adjustment
                 float best_score = 0;
                 int best_r = -1, best_c = -1;
-                for (int r = 0; r < total_similarity2.rows; ++r)
+                for (int r = 0; r < similarities2.rows; ++r)
                 {
-                    ushort *row = total_similarity2.ptr<ushort>(r);
-                    for (int c = 0; c < total_similarity2.cols; ++c)
+                    ushort *row = similarities2.ptr<ushort>(r);
+                    for (int c = 0; c < similarities2.cols; ++c)
                     {
                         int score_int = row[c];
                         float score = (score_int * 100.f) / (4 * numFeatures);
@@ -1237,26 +1221,25 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
     }
 }
 
-int Detector::addTemplate(const std::vector<Mat> &sources, const std::string &class_id,
+int Detector::addTemplate(const Mat source, const std::string &class_id,
                           const Mat &object_mask)
 {
-    int num_modalities = 1;
     std::vector<TemplatePyramid> &template_pyramids = class_templates[class_id];
     int template_id = static_cast<int>(template_pyramids.size());
 
     TemplatePyramid tp;
-    tp.resize(num_modalities * pyramid_levels);
+    tp.resize(pyramid_levels);
 
     {
         // Extract a template at each pyramid level
-        Ptr<ColorGradientPyramid> qp = modality->process(sources, object_mask);
+        Ptr<ColorGradientPyramid> qp = modality->process(source, object_mask);
         for (int l = 0; l < pyramid_levels; ++l)
         {
             /// @todo Could do mask subsampling here instead of in pyrDown()
             if (l > 0)
                 qp->pyrDown();
 
-            bool success = qp->extractTemplate(tp[l * num_modalities]);
+            bool success = qp->extractTemplate(tp[l]);
             if (!success)
                 return -1;
         }

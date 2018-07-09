@@ -93,15 +93,10 @@ public:
     void read(const cv::FileNode &fn);
     void write(cv::FileStorage &fs) const;
 
-    cv::Ptr<ColorGradientPyramid> process(const std::vector<cv::Mat> &src,
-                                                                                const cv::Mat &mask = cv::Mat()) const
+    cv::Ptr<ColorGradientPyramid> process(const cv::Mat src, const cv::Mat &mask = cv::Mat()) const
     {
-        return processImpl(src, mask);
+        return makePtr<ColorGradientPyramid>(src, mask, weak_threshold, num_features, strong_threshold);
     }
-
-    cv::Ptr<ColorGradientPyramid> processImpl(const std::vector<cv::Mat> &src,
-                                                                                        const cv::Mat &mask) const;
-    static cv::Ptr<ColorGradient> create(const std::string &ColorGradient_type);
 };
 
 struct Match
@@ -154,7 +149,7 @@ public:
                                                      const std::vector<std::string> &class_ids = std::vector<std::string>(),
                                                      const cv::Mat masks = cv::Mat()) const;
 
-    int addTemplate(const std::vector<cv::Mat> &sources, const std::string &class_id,
+    int addTemplate(const cv::Mat sources, const std::string &class_id,
                                     const cv::Mat &object_mask);
 
     const cv::Ptr<ColorGradient> &getModalities() const { return modality; }
