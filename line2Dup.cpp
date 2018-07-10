@@ -1,8 +1,6 @@
 #include "line2Dup.h"
-#include <memory>
 #include <iostream>
-#include <opencv2/dnn.hpp>
-#include <assert.h>
+
 using namespace std;
 using namespace cv;
 

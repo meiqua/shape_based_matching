@@ -1,9 +1,9 @@
 #ifndef CXXLINEMOD_H
 #define CXXLINEMOD_H
 #include <opencv2/core/core.hpp>
-#include <opencv2/rgbd.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <map>
 
 namespace line2Dup
 {
@@ -95,7 +95,7 @@ public:
 
     cv::Ptr<ColorGradientPyramid> process(const cv::Mat src, const cv::Mat &mask = cv::Mat()) const
     {
-        return makePtr<ColorGradientPyramid>(src, mask, weak_threshold, num_features, strong_threshold);
+        return cv::makePtr<ColorGradientPyramid>(src, mask, weak_threshold, num_features, strong_threshold);
     }
 };
 
@@ -197,5 +197,127 @@ protected:
 };
 
 } // namespace line2Dup
+
+namespace shape_based_match {
+class shapeInfo{
+public:
+    cv::Mat src;
+    cv::Mat mask;
+
+    std::vector<float> angle_range;
+    std::vector<float> scale_range;
+
+    float angle_step = 15;
+    float scale_step = 0.5;
+
+    shapeInfo(cv::Mat src, cv::Mat mask = cv::Mat()){
+        this->src = src;
+        if(mask.empty()){
+            // make sure we have masks
+            this->mask = cv::Mat(src.size(), CV_8UC1, {255});
+        }else{
+            this->mask = mask;
+        }
+    }
+
+    static cv::Mat transform(cv::Mat src, float angle, float scale){
+        cv::Mat dst;
+        cv::Mat tran = cv::Mat(2, 3, CV_32FC1, {0});
+
+        float angle_rad = angle/180.0f*CV_PI;
+        tran.at<float>(0,0) = std::cos(angle_rad)*scale;
+        tran.at<float>(1,1) = std::cos(angle_rad)*scale;
+        tran.at<float>(0,1) = std::sin(angle_rad)*scale;
+        tran.at<float>(1,0) = -std::sin(angle_rad)*scale;
+
+        cv::warpAffine(src, dst, tran, src.size());
+        return dst;
+    }
+
+    struct shape_and_info{
+        cv::Mat src;
+        cv::Mat mask;
+        float angle;
+        float scale;
+    };
+    std::vector<shape_and_info> infos;
+    produce_infos(){
+        assert(angle_range.size() <= 2);
+        assert(scale_range.size() <= 2);
+
+        // make sure range not empty
+        if(angle_range.size() == 0){
+            angle_range.push_back(0);
+        }
+        if(scale_range.size() == 0){
+            scale_range.push_back(1);
+        }
+
+        if(angle_range.size() == 1 && scale_range.size() == 1){
+            float angle = angle_range[0];
+            float scale = scale_range[0];
+            cv::Mat src_transformed = transform(src, angle, scale);
+            cv::Mat mask_transformed = transform(mask, angle, scale);
+            mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
+            infos.push_back(shape_and_info(src_transformed, mask_transformed, angle, scale));
+
+        }else if(angle_range.size() == 1 && scale_range.size() == 2){
+            float angle = angle_range[0];
+            for(float scale = scale_range[0]; scale <= scale_range[1]; scale += scale_step){
+                cv::Mat src_transformed = transform(src, angle, scale);
+                cv::Mat mask_transformed = transform(mask, angle, scale);
+                mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
+                infos.push_back(shape_and_info(src_transformed, mask_transformed, angle, scale));
+            }
+        }else if(angle_range.size() == 2 && scale_range.size() == 1){
+            float scale = scale_range[0];
+            for(float angle = angle_range[0]; angle <= angle_range[1]; angle += angle_step){
+                cv::Mat src_transformed = transform(src, angle, scale);
+                cv::Mat mask_transformed = transform(mask, angle, scale);
+                mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
+                infos.push_back(shape_and_info(src_transformed, mask_transformed, angle, scale));
+            }
+        }else if(angle_range.size() == 2 && scale_range.size() == 2){
+            for(float scale = scale_range[0]; scale <= scale_range[1]; scale += scale_step){
+                for(float angle = angle_range[0]; angle <= angle_range[1]; angle += angle_step){
+                    cv::Mat src_transformed = transform(src, angle, scale);
+                    cv::Mat mask_transformed = transform(mask, angle, scale);
+                    mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
+                    infos.push_back(shape_and_info(src_transformed, mask_transformed, angle, scale));
+                }
+            }
+        }
+    }
+};
+
+save_infos(std::vector<shapeInfo::shape_and_info>& infos, cv::Mat src, std::string path = "infos.yaml"){
+    cv::FileStorage fs(path, cv::FileStorage::WRITE);
+    fs << "src" << src;
+
+    fs << "infos"
+       << "[";
+    for (int i = 0; i < infos.size(); i++)
+    {
+        fs << "{";
+        fs << "angle" << infos[i].angle;
+        fs << "scale" << infos[i].scale;
+        fs << "}";
+    }
+    fs << "]";
+}
+std::vector<std::vector<float>> load_infos(std::string path = "info.yaml"){
+    std::vector<std::vector<float>> infos;
+    cv::FileStorage fs(path, cv::FileStorage::READ);
+    cv::FileNode infos_fn = fs["infos"];
+    cv::FileNodeIterator it = infos_fn.begin(), it_end = infos_fn.end();
+    for (int i = 0; it != it_end; ++it, i++)
+    {
+        std::vector<float> info;
+        info.push_back(float((*it)["angle"]));
+        info.push_back(float((*it)["scale"]));
+        infos.push_back(info);
+    }
+}
+}
 
 #endif
