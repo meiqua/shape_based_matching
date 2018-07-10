@@ -50,6 +50,8 @@ void Template::read(const FileNode &fn)
 {
     width = fn["width"];
     height = fn["height"];
+    tl_x = fn["tl_x"];
+    tl_y = fn["tl_y"];
     pyramid_level = fn["pyramid_level"];
 
     FileNode features_fn = fn["features"];
@@ -65,6 +67,8 @@ void Template::write(FileStorage &fs) const
 {
     fs << "width" << width;
     fs << "height" << height;
+    fs << "tl_x" << tl_x;
+    fs << "tl_y" << tl_y;
     fs << "pyramid_level" << pyramid_level;
 
     fs << "features"
@@ -111,13 +115,13 @@ static Rect cropTemplates(std::vector<Template> &templates)
         Template &templ = templates[i];
         templ.width = (max_x - min_x) >> templ.pyramid_level;
         templ.height = (max_y - min_y) >> templ.pyramid_level;
-        int offset_x = min_x >> templ.pyramid_level;
-        int offset_y = min_y >> templ.pyramid_level;
+        templ.tl_x = min_x >> templ.pyramid_level;
+        templ.tl_y = min_y  >> templ.pyramid_level;
 
         for (int j = 0; j < (int)templ.features.size(); ++j)
         {
-            templ.features[j].x -= offset_x;
-            templ.features[j].y -= offset_y;
+            templ.features[j].x -= templ.tl_x;
+            templ.features[j].y -= templ.tl_y;
         }
     }
 

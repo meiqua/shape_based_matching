@@ -26,6 +26,8 @@ struct Template
 {
     int width;
     int height;
+    int tl_x;
+    int tl_y;
     int pyramid_level;
     std::vector<Feature> features;
 
@@ -198,7 +200,7 @@ protected:
 
 } // namespace line2Dup
 
-namespace shape_based_match {
+namespace shape_based_matching {
 class shapeInfo{
 public:
     cv::Mat src;
@@ -209,6 +211,21 @@ public:
 
     float angle_step = 15;
     float scale_step = 0.5;
+
+    class shape_and_info{
+    public:
+        cv::Mat src;
+        cv::Mat mask;
+        float angle;
+        float scale;
+        shape_and_info(cv::Mat src_, cv::Mat mask_, float angle_, float scale_){
+            src = src_;
+            mask = mask_;
+            angle = angle_;
+            scale = scale_;
+        }
+    };
+    std::vector<shape_and_info> infos;
 
     shapeInfo(cv::Mat src, cv::Mat mask = cv::Mat()){
         this->src = src;
@@ -233,15 +250,39 @@ public:
         cv::warpAffine(src, dst, tran, src.size());
         return dst;
     }
+    static void save_infos(std::vector<shapeInfo::shape_and_info>& infos, cv::Mat src, cv::Mat mask, std::string path = "infos.yaml"){
+        cv::FileStorage fs(path, cv::FileStorage::WRITE);
+        fs << "src" << src;
+        fs << "mask" << mask;
+        fs << "infos"
+           << "[";
+        for (int i = 0; i < infos.size(); i++)
+        {
+            fs << "{";
+            fs << "angle" << infos[i].angle;
+            fs << "scale" << infos[i].scale;
+            fs << "}";
+        }
+        fs << "]";
+    }
+    static std::vector<std::vector<float>> load_infos(cv::Mat& src, cv::Mat& mask, std::string path = "info.yaml"){
+        cv::FileStorage fs(path, cv::FileStorage::READ);
 
-    struct shape_and_info{
-        cv::Mat src;
-        cv::Mat mask;
-        float angle;
-        float scale;
-    };
-    std::vector<shape_and_info> infos;
-    produce_infos(){
+        fs["src"] >> src;
+        fs["mask"] >> mask;
+        std::vector<std::vector<float>> infos;
+        cv::FileNode infos_fn = fs["infos"];
+        cv::FileNodeIterator it = infos_fn.begin(), it_end = infos_fn.end();
+        for (int i = 0; it != it_end; ++it, i++)
+        {
+            std::vector<float> info;
+            info.push_back(float((*it)["angle"]));
+            info.push_back(float((*it)["scale"]));
+            infos.push_back(info);
+        }
+    }
+
+    void produce_infos(){
         assert(angle_range.size() <= 2);
         assert(scale_range.size() <= 2);
 
@@ -259,7 +300,7 @@ public:
             cv::Mat src_transformed = transform(src, angle, scale);
             cv::Mat mask_transformed = transform(mask, angle, scale);
             mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
-            infos.push_back(shape_and_info(src_transformed, mask_transformed, angle, scale));
+            infos.emplace_back(src_transformed, mask_transformed, angle, scale);
 
         }else if(angle_range.size() == 1 && scale_range.size() == 2){
             float angle = angle_range[0];
@@ -267,7 +308,7 @@ public:
                 cv::Mat src_transformed = transform(src, angle, scale);
                 cv::Mat mask_transformed = transform(mask, angle, scale);
                 mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
-                infos.push_back(shape_and_info(src_transformed, mask_transformed, angle, scale));
+                infos.emplace_back(src_transformed, mask_transformed, angle, scale);
             }
         }else if(angle_range.size() == 2 && scale_range.size() == 1){
             float scale = scale_range[0];
@@ -275,7 +316,7 @@ public:
                 cv::Mat src_transformed = transform(src, angle, scale);
                 cv::Mat mask_transformed = transform(mask, angle, scale);
                 mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
-                infos.push_back(shape_and_info(src_transformed, mask_transformed, angle, scale));
+                infos.emplace_back(src_transformed, mask_transformed, angle, scale);
             }
         }else if(angle_range.size() == 2 && scale_range.size() == 2){
             for(float scale = scale_range[0]; scale <= scale_range[1]; scale += scale_step){
@@ -283,41 +324,13 @@ public:
                     cv::Mat src_transformed = transform(src, angle, scale);
                     cv::Mat mask_transformed = transform(mask, angle, scale);
                     mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
-                    infos.push_back(shape_and_info(src_transformed, mask_transformed, angle, scale));
+                    infos.emplace_back(src_transformed, mask_transformed, angle, scale);
                 }
             }
         }
     }
 };
 
-save_infos(std::vector<shapeInfo::shape_and_info>& infos, cv::Mat src, std::string path = "infos.yaml"){
-    cv::FileStorage fs(path, cv::FileStorage::WRITE);
-    fs << "src" << src;
-
-    fs << "infos"
-       << "[";
-    for (int i = 0; i < infos.size(); i++)
-    {
-        fs << "{";
-        fs << "angle" << infos[i].angle;
-        fs << "scale" << infos[i].scale;
-        fs << "}";
-    }
-    fs << "]";
-}
-std::vector<std::vector<float>> load_infos(std::string path = "info.yaml"){
-    std::vector<std::vector<float>> infos;
-    cv::FileStorage fs(path, cv::FileStorage::READ);
-    cv::FileNode infos_fn = fs["infos"];
-    cv::FileNodeIterator it = infos_fn.begin(), it_end = infos_fn.end();
-    for (int i = 0; it != it_end; ++it, i++)
-    {
-        std::vector<float> info;
-        info.push_back(float((*it)["angle"]));
-        info.push_back(float((*it)["scale"]));
-        infos.push_back(info);
-    }
-}
 }
 
 #endif
