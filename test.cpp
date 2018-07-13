@@ -35,13 +35,13 @@ void circle_gen(){
     waitKey(0);
 }
 
-void circle_test(){
-    line2Dup::Detector detector(128, {2, 8});
+void scale_test(){
+    line2Dup::Detector detector(128, {4, 8});
 
     string mode = "train";
     mode = "test";
     if(mode == "train"){
-        Mat img = cv::imread(prefix+"templ/circle.png");
+        Mat img = cv::imread(prefix+"case0/templ/circle.png");
         shape_based_matching::shapeInfo shapes(img);
         shapes.scale_range = {0.2f, 2};
         shapes.scale_step = 0.05f;
@@ -55,15 +55,16 @@ void circle_test(){
                 infos_have_templ.push_back(info);
             }
         }
-        detector.writeClasses(prefix+"%s_templ.yaml");
+        detector.writeClasses(prefix+"case0/%s_templ.yaml");
         shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "circle_info.yaml");
         std::cout << "train end" << std::endl;
+
     }else if(mode=="test"){
         std::vector<std::string> ids;
         ids.push_back("circle");
-        detector.readClasses(ids, prefix+"%s_templ.yaml");
+        detector.readClasses(ids, prefix+"case0/%s_templ.yaml");
 
-        Mat test_img = imread(prefix+"t4.png");
+        Mat test_img = imread(prefix+"case0/t1.png");
         Rect roi(0, 0, 1024 ,1024);
         Mat img = test_img(roi).clone();
         assert(img.isContinuous());
@@ -96,7 +97,7 @@ void circle_test(){
     }
 }
 
-int main(){
+void angle_test(){
     line2Dup::Detector detector(128, {4, 8});
 
     string mode = "train";
@@ -198,5 +199,8 @@ int main(){
 
         std::cout << "test end" << std::endl;
     }
+}
+int main(){
+    scale_test();
     return 0;
 }
