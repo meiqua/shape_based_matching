@@ -10,5 +10,8 @@ We find that shape based matching is the same as linemod. Comparing to opencv li
 3. simple codes for rotating and scaling img for training. see test.cpp for examples  
 
 test img & templ features  
+The example is to simple to explain the robustness  
+running time: 1024x1024, 60ms to construct response map, 7ms for 360 templates  
+
 ![test](./test/case1/result.png)
 ![templ](test/case1/templ.png)
