@@ -240,15 +240,11 @@ public:
 
     static cv::Mat transform(cv::Mat src, float angle, float scale){
         cv::Mat dst;
-        cv::Mat tran = cv::Mat(2, 3, CV_32FC1, cv::Scalar(0));
 
-        float angle_rad = angle/180.0f*CV_PI;
-        tran.at<float>(0,0) = std::cos(angle_rad)*scale;
-        tran.at<float>(1,1) = std::cos(angle_rad)*scale;
-        tran.at<float>(0,1) = std::sin(angle_rad)*scale;
-        tran.at<float>(1,0) = -std::sin(angle_rad)*scale;
+        cv::Point center(src.cols/2, src.rows/2);
+        cv::Mat rot_mat = cv::getRotationMatrix2D(center, angle, scale);
+        cv::warpAffine(src, dst, rot_mat, src.size());
 
-        cv::warpAffine(src, dst, tran, src.size());
         return dst;
     }
     static void save_infos(std::vector<shapeInfo::shape_and_info>& infos, cv::Mat src, cv::Mat mask, std::string path = "infos.yaml"){
