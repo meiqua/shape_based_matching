@@ -1,4 +1,5 @@
 build/
 .idea/
 .vscode/
+test/
 CMakeLists.txt.user

@@ -387,7 +387,7 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
     if (!mask.empty())
     {
         erode(mask, local_mask, Mat(), Point(-1, -1), 1, BORDER_REPLICATE);
-        subtract(mask, local_mask, local_mask);
+//        subtract(mask, local_mask, local_mask);
     }
 
     std::vector<Candidate> candidates;
