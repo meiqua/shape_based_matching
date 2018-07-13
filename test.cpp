@@ -29,8 +29,8 @@ private:
 static std::string prefix = "/home/meiqua/shape_based_matching/test/";
 
 void circle_gen(){
-    Mat bg = Mat(200, 200, CV_8UC3, {0, 0, 0});
-    cv::circle(bg, {100, 100}, 50, {255,255,255}, -1);
+    Mat bg = Mat(400, 400, CV_8UC3, {0, 0, 0});
+    cv::circle(bg, {200, 200}, 100, {255,255,255}, -1);
     cv::imshow("test", bg);
     waitKey(0);
 }
@@ -43,8 +43,8 @@ void scale_test(){
     if(mode == "train"){
         Mat img = cv::imread(prefix+"case0/templ/circle.png");
         shape_based_matching::shapeInfo shapes(img);
-        shapes.scale_range = {0.2f, 2};
-        shapes.scale_step = 0.05f;
+        shapes.scale_range = {0.1f, 1};
+        shapes.scale_step = 0.01f;
         shapes.produce_infos();
         std::vector<shape_based_matching::shapeInfo::shape_and_info> infos_have_templ;
         string class_id = "circle";
@@ -64,17 +64,17 @@ void scale_test(){
         ids.push_back("circle");
         detector.readClasses(ids, prefix+"case0/%s_templ.yaml");
 
-        Mat test_img = imread(prefix+"case0/t1.png");
+        Mat test_img = imread(prefix+"case0/t2.png");
         Rect roi(0, 0, 1024 ,1024);
         Mat img = test_img(roi).clone();
         assert(img.isContinuous());
 
         Timer timer;
-        auto matches = detector.match(img, 75, ids);
+        auto matches = detector.match(img, 90, ids);
         timer.out();
 
         std::cout << "matches.size(): " << matches.size() << std::endl;
-        size_t top5 = 5;
+        size_t top5 = 100;
         if(top5>matches.size()) top5=matches.size();
         for(size_t i=0; i<top5; i++){
             auto match = matches[i];
