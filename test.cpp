@@ -153,23 +153,23 @@ void angle_test(){
         Mat img = padded_img(roi).clone();
         assert(img.isContinuous());
 
-        imshow("test", img);
-        waitKey(0);
+//        imshow("test", img);
+//        waitKey(0);
 
         Timer timer;
         auto matches = detector.match(img, 90, ids);
         timer.out();
 
         std::cout << "matches.size(): " << matches.size() << std::endl;
-        size_t top5 = 5;
+        size_t top5 = 50;
         if(top5>matches.size()) top5=matches.size();
         for(size_t i=0; i<top5; i++){
             auto match = matches[i];
             auto templ = detector.getTemplates("test",
                                                match.template_id);
 
-//            int cols = templ[0].width + templ[0].tl_x;
-//            int rows = templ[0].height+ templ[0].tl_y;
+//            int cols = templ[0].width + 1;
+//            int rows = templ[0].height+ 1;
 //            cv::Mat view = cv::Mat(rows, cols, CV_8UC1, cv::Scalar(0));
 //            for(int i=0; i<templ[0].features.size(); i++){
 //                auto feat = templ[0].features[i];
@@ -201,6 +201,6 @@ void angle_test(){
     }
 }
 int main(){
-    scale_test();
+    angle_test();
     return 0;
 }

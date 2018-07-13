@@ -4,6 +4,26 @@
 using namespace std;
 using namespace cv;
 
+#include <chrono>
+class Timer
+{
+public:
+    Timer() : beg_(clock_::now()) {}
+    void reset() { beg_ = clock_::now(); }
+    double elapsed() const {
+        return std::chrono::duration_cast<second_>
+            (clock_::now() - beg_).count(); }
+    void out(std::string message = ""){
+        double t = elapsed();
+        std::cout << message << "  elasped time:" << t << "s" << std::endl;
+        reset();
+    }
+private:
+    typedef std::chrono::high_resolution_clock clock_;
+    typedef std::chrono::duration<double, std::ratio<1> > second_;
+    std::chrono::time_point<clock_> beg_;
+};
+
 namespace line2Dup
 {
 /**
@@ -989,6 +1009,7 @@ Detector::Detector(int num_features, std::vector<int> T)
 std::vector<Match> Detector::match(Mat source, float threshold,
                                    const std::vector<std::string> &class_ids, const Mat mask) const
 {
+    Timer timer;
     std::vector<Match> matches;
 
     // Initialize each ColorGradient with our sources
@@ -1028,6 +1049,9 @@ std::vector<Match> Detector::match(Mat source, float threshold,
 
         sizes.push_back(quantized.size());
     }
+
+    timer.out("construct response map");
+
     if (class_ids.empty())
     {
         // Match all templates
@@ -1050,6 +1074,8 @@ std::vector<Match> Detector::match(Mat source, float threshold,
     std::sort(matches.begin(), matches.end());
     std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
     matches.erase(new_end, matches.end());
+
+    timer.out("templ match");
 
     return matches;
 }
