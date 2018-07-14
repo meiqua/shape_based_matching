@@ -29,8 +29,8 @@ private:
 static std::string prefix = "/home/meiqua/shape_based_matching/test/";
 
 void circle_gen(){
-    Mat bg = Mat(400, 400, CV_8UC3, {0, 0, 0});
-    cv::circle(bg, {200, 200}, 100, {255,255,255}, -1);
+    Mat bg = Mat(800, 800, CV_8UC3, {0, 0, 0});
+    cv::circle(bg, {400, 400}, 200, {255,255,255}, -1);
     cv::imshow("test", bg);
     waitKey(0);
 }
@@ -64,10 +64,18 @@ void scale_test(){
         ids.push_back("circle");
         detector.readClasses(ids, prefix+"case0/%s_templ.yaml");
 
-        Mat test_img = imread(prefix+"case0/t2.png");
-        Rect roi(0, 0, 1024 ,1024);
+        Mat test_img = imread(prefix+"case0/1.png");
+        pyrDown(test_img, test_img);
+
+        int stride = 32;
+        int n = test_img.rows/stride;
+        int m = test_img.cols/stride;
+        Rect roi(0, 0, stride*m , stride*n);
         Mat img = test_img(roi).clone();
         assert(img.isContinuous());
+
+        imshow("test", img);
+        waitKey(0);
 
         Timer timer;
         auto matches = detector.match(img, 90, ids);
@@ -149,12 +157,15 @@ void angle_test(){
                                      test_img.cols + 2*padding, test_img.type(), cv::Scalar::all(0));
         test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
 
-        Rect roi(200, 200, 1024 ,1024);
+        int stride = 16;
+        int n = padded_img.rows/stride;
+        int m = padded_img.cols/stride;
+        Rect roi(0, 0, stride*m , stride*n);
         Mat img = padded_img(roi).clone();
         assert(img.isContinuous());
 
-//        imshow("test", img);
-//        waitKey(0);
+        imshow("test", padded_img);
+        waitKey(0);
 
         Timer timer;
         auto matches = detector.match(img, 90, ids);
