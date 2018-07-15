@@ -36,14 +36,14 @@ void circle_gen(){
 }
 
 void scale_test(){
-    line2Dup::Detector detector(128, {4, 8});
+    line2Dup::Detector detector(127, {4, 8});
 
     string mode = "train";
     mode = "test";
     if(mode == "train"){
         Mat img = cv::imread(prefix+"case0/templ/circle.png");
         shape_based_matching::shapeInfo shapes(img);
-        shapes.scale_range = {0.1f, 1};
+        shapes.scale_range = {0.01f, 1};
         shapes.scale_step = 0.01f;
         shapes.produce_infos();
         std::vector<shape_based_matching::shapeInfo::shape_and_info> infos_have_templ;
@@ -64,8 +64,7 @@ void scale_test(){
         ids.push_back("circle");
         detector.readClasses(ids, prefix+"case0/%s_templ.yaml");
 
-        Mat test_img = imread(prefix+"case0/1.png");
-        pyrDown(test_img, test_img);
+        Mat test_img = imread(prefix+"case0/3.jpg");
 
         int stride = 32;
         int n = test_img.rows/stride;
@@ -74,15 +73,12 @@ void scale_test(){
         Mat img = test_img(roi).clone();
         assert(img.isContinuous());
 
-        imshow("test", img);
-        waitKey(0);
-
         Timer timer;
         auto matches = detector.match(img, 90, ids);
         timer.out();
 
         std::cout << "matches.size(): " << matches.size() << std::endl;
-        size_t top5 = 100;
+        size_t top5 = 5;
         if(top5>matches.size()) top5=matches.size();
         for(size_t i=0; i<top5; i++){
             auto match = matches[i];
@@ -212,6 +208,6 @@ void angle_test(){
     }
 }
 int main(){
-    angle_test();
+    scale_test();
     return 0;
 }
