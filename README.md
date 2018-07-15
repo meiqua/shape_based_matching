@@ -1,7 +1,9 @@
 # shape_based_matching  
 
 try to implement halcon shape based matching, refer to machine vision algorithms and applications, page 317 3.11.5, written by halcon engineers  
-We find that shape based matching is the same as linemod. Comparing to opencv linemod src, we improve from three aspects:  
+We find that shape based matching is the same as linemod.  
+[linemod pdf](Gradient Response Maps for Real-TimeDetection of Textureless Objects.pdf)  
+Comparing to opencv linemod src, we improve from three aspects:  
 
 1. delete depth modality so we don't need virtual func, this may speed up  
 
