@@ -43,7 +43,7 @@ void scale_test(){
     if(mode == "train"){
         Mat img = cv::imread(prefix+"case0/templ/circle.png");
         shape_based_matching::shapeInfo shapes(img);
-        shapes.scale_range = {0.01f, 1};
+        shapes.scale_range = {0.1f, 1};
         shapes.scale_step = 0.01f;
         shapes.produce_infos();
         std::vector<shape_based_matching::shapeInfo::shape_and_info> infos_have_templ;
@@ -64,7 +64,7 @@ void scale_test(){
         ids.push_back("circle");
         detector.readClasses(ids, prefix+"case0/%s_templ.yaml");
 
-        Mat test_img = imread(prefix+"case0/3.jpg");
+        Mat test_img = imread(prefix+"case0/3.png");
 
         int stride = 32;
         int n = test_img.rows/stride;

@@ -28,8 +28,14 @@ Comparing to opencv linemod src, we improve from three aspects:
 
 ### Example for circle shape
 
+![circle1](test/case0/1.jpg)
 ![circle1](test/case0/result/1.png)  
+
+![circle2](test/case0/2.jpg)
 ![circle2](test/case0/result/2.png)  
+
+![circle3](test/case0/3.png)
+![circle3](test/case0/result/3.png)  
 
 ### Simple example for arbitary shape
 
