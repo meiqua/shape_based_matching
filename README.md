@@ -11,6 +11,8 @@ Comparing to opencv linemod src, we improve from three aspects:
 
 3. simple codes for rotating and scaling img for training. see test.cpp for examples  
 
+[Chinese blog about the thoughts](https://www.zhihu.com/question/39513724/answer/441677905)  
+
 We apply it to our project and it works like a magic. Following is a simple example.  
 Well, the example is too simple to show the robustness  
 running time: 1024x1024, 60ms to construct response map, 7ms for 360 templates  
