@@ -8,7 +8,7 @@ We find that shape based matching is the same as linemod. [linemod pdf](Gradient
 The key of shape based matching, or linemod, is using gradient orientation only. Though both edge and orientation are resistant to disturbance,
 edge have only 1bit info(there is an edge or not), so it's hard for us to dig our shape out if there are too many edges, but we have to have too many edges if we want to find all the target shapes. it's quite a dilemma.  
 
-However, gradient orientation has much more info then edge, so we can easily dig our shapes out from the overwhelming orientation by template matching across the img.  
+However, gradient orientation has much more info than edge, so we can easily dig our shapes out from the overwhelming orientation by template matching across the img.  
 
 Speed is also what we concern. Thanks to the speeding up magic in linemod, we can handle 1000 templates in 20ms or so.  
 
