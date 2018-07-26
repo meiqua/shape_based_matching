@@ -48,7 +48,7 @@ public:
 
     void pyrDown();
 
-protected:
+public:
     void update();
     /// Candidate feature with a score
     struct Candidate
@@ -152,7 +152,7 @@ public:
                                                      const cv::Mat masks = cv::Mat()) const;
 
     int addTemplate(const cv::Mat sources, const std::string &class_id,
-                                    const cv::Mat &object_mask);
+                                    const cv::Mat &object_mask, int num_features = 0);
 
     const cv::Ptr<ColorGradient> &getModalities() const { return modality; }
 

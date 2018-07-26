@@ -24,6 +24,8 @@ Comparing to opencv linemod src, we improve from three aspects:
 
 3. simple codes for rotating and scaling img for training. see test.cpp for examples  
 
+4. nms for accurate edge selection  
+
 ## some test
 
 ### Example for circle shape
@@ -36,6 +38,16 @@ Comparing to opencv linemod src, we improve from three aspects:
 
 ![circle3](test/case0/3.png)
 ![circle3](test/case0/result/3.png)  
+
+### circle template before and after nms  
+
+#### before nms
+
+![before](test/case0/features/no_nms_templ.png)
+
+#### after nms
+
+![after](test/case0/features/nms_templ.png)
 
 ### Simple example for arbitary shape
 

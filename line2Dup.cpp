@@ -413,24 +413,48 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
     std::vector<Candidate> candidates;
     bool no_mask = local_mask.empty();
     float threshold_sq = strong_threshold * strong_threshold;
-    for (int r = 0; r < magnitude.rows; ++r)
+
+    int nms_kernel_size = 5;
+    cv::Mat magnitude_valid = cv::Mat(magnitude.size(), CV_8UC1, cv::Scalar(255));
+
+    for (int r = 0+nms_kernel_size/2; r < magnitude.rows-nms_kernel_size/2; ++r)
     {
         const uchar *angle_r = angle.ptr<uchar>(r);
-        const float *magnitude_r = magnitude.ptr<float>(r);
         const uchar *mask_r = no_mask ? NULL : local_mask.ptr<uchar>(r);
 
-        for (int c = 0; c < magnitude.cols; ++c)
+        for (int c = 0+nms_kernel_size/2; c < magnitude.cols-nms_kernel_size/2; ++c)
         {
             if (no_mask || mask_r[c])
             {
-                uchar quantized = angle_r[c];
-                if (quantized > 0)
-                {
-                    float score = magnitude_r[c];
-                    if (score > threshold_sq)
-                    {
-                        candidates.push_back(Candidate(c, r, getLabel(quantized), score));
+                float score = 0;
+                if(magnitude_valid.at<uchar>(r, c)>0){
+                    score = magnitude.at<float>(r, c);
+                    bool is_max = true;
+                    for(int r_offset = -nms_kernel_size/2; r_offset <= nms_kernel_size/2; r_offset++){
+                        for(int c_offset = -nms_kernel_size/2; c_offset <= nms_kernel_size/2; c_offset++){
+                            if(r_offset == 0 && c_offset == 0) continue;
+
+                            if(score < magnitude.at<float>(r+r_offset, c+c_offset)){
+                                score = 0;
+                                is_max = false;
+                                break;
+                            }
+                        }
                     }
+
+                    if(is_max){
+                        for(int r_offset = -nms_kernel_size/2; r_offset <= nms_kernel_size/2; r_offset++){
+                            for(int c_offset = -nms_kernel_size/2; c_offset <= nms_kernel_size/2; c_offset++){
+                                if(r_offset == 0 && c_offset == 0) continue;
+                                magnitude_valid.at<uchar>(r+r_offset, c+c_offset) = 0;
+                            }
+                        }
+                    }
+                }
+
+                if (score > threshold_sq)
+                {
+                    candidates.push_back(Candidate(c, r, getLabel(angle.at<uchar>(r, c)), score));
                 }
             }
         }
@@ -1251,7 +1275,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
 }
 
 int Detector::addTemplate(const Mat source, const std::string &class_id,
-                          const Mat &object_mask)
+                          const Mat &object_mask, int num_features)
 {
     std::vector<TemplatePyramid> &template_pyramids = class_templates[class_id];
     int template_id = static_cast<int>(template_pyramids.size());
@@ -1262,6 +1286,10 @@ int Detector::addTemplate(const Mat source, const std::string &class_id,
     {
         // Extract a template at each pyramid level
         Ptr<ColorGradientPyramid> qp = modality->process(source, object_mask);
+
+        if(num_features > 0)
+        qp->num_features = num_features;
+
         for (int l = 0; l < pyramid_levels; ++l)
         {
             /// @todo Could do mask subsampling here instead of in pyrDown()

@@ -36,7 +36,8 @@ void circle_gen(){
 }
 
 void scale_test(){
-    line2Dup::Detector detector(127, {4, 8});
+    int num_feature = 150;
+    line2Dup::Detector detector(num_feature, {4, 8});
 
     string mode = "train";
     mode = "test";
@@ -49,7 +50,8 @@ void scale_test(){
         std::vector<shape_based_matching::shapeInfo::shape_and_info> infos_have_templ;
         string class_id = "circle";
         for(auto& info: shapes.infos){
-            int templ_id = detector.addTemplate(info.src, class_id, info.mask);
+            int templ_id = detector.addTemplate(info.src, class_id, info.mask,
+                                                int(num_feature*info.scale));
             std::cout << "templ_id: " << templ_id << std::endl;
             if(templ_id != -1){
                 infos_have_templ.push_back(info);
@@ -74,7 +76,7 @@ void scale_test(){
         assert(img.isContinuous());
 
         Timer timer;
-        auto matches = detector.match(img, 90, ids);
+        auto matches = detector.match(img, 75, ids);
         timer.out();
 
         std::cout << "matches.size(): " << matches.size() << std::endl;
@@ -92,6 +94,19 @@ void scale_test(){
             cv::putText(img, to_string(int(round(match.similarity))),
                         Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, color);
             cv::circle(img, {x, y}, r, color, 2);
+
+//            int cols = templ[0].width + 1;
+//            int rows = templ[0].height+ 1;
+//            cv::Mat view = cv::Mat(rows, cols, CV_8UC1, cv::Scalar(0));
+//            for(int i=0; i<templ[0].features.size(); i++){
+//                auto feat = templ[0].features[i];
+//                assert(feat.y<rows);
+//                assert(feat.x<cols);
+//                view.at<uchar>(feat.y, feat.x) = 255;
+//            }
+//            view = view>0;
+//            imshow("test", view);
+//            waitKey(0);
         }
 
         imshow("img", img);
