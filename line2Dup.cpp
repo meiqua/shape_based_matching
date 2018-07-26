@@ -419,7 +419,6 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
 
     for (int r = 0+nms_kernel_size/2; r < magnitude.rows-nms_kernel_size/2; ++r)
     {
-        const uchar *angle_r = angle.ptr<uchar>(r);
         const uchar *mask_r = no_mask ? NULL : local_mask.ptr<uchar>(r);
 
         for (int c = 0+nms_kernel_size/2; c < magnitude.cols-nms_kernel_size/2; ++c)
