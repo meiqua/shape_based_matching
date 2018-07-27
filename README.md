@@ -16,7 +16,7 @@ Speed is also important. Thanks to the speeding up magic in linemod, we can hand
 
 ## improvment
 
-Comparing to opencv linemod src, we improve from three aspects:  
+Comparing to opencv linemod src, we improve from 4 aspects:  
 
 1. delete depth modality so we don't need virtual func, this may speed up  
 
