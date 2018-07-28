@@ -48,10 +48,6 @@ Comparing to opencv linemod src, we improve from 4 aspects:
 #### after nms
 
 ![after](test/case0/features/nms_templ.png)  
-The circle template has a clear distribution pattern. Because of local
-voting in 3x3, an orientation can be generated only only when votes >= 5/9. So
-local voting will filter out orientation close to quantization border (votes go to different buckets),
-which may alleviate quantization scoring problem (prone to get wrong score on border).
 
 ### Simple example for arbitary shape
 
