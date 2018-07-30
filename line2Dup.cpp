@@ -451,7 +451,7 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
                     }
                 }
 
-                if (score > threshold_sq)
+                if (score > threshold_sq && getLabel(angle.at<uchar>(r, c) > 0)
                 {
                     candidates.push_back(Candidate(c, r, getLabel(angle.at<uchar>(r, c)), score));
                 }
