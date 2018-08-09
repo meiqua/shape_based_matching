@@ -57,3 +57,8 @@ running time: 1024x1024, 60ms to construct response map, 7ms for 360 templates
 test img & templ features  
 ![test](./test/case1/result.png)  
 ![templ](test/case1/templ.png)  
+
+
+### noise test  
+
+![test2](test/case2/result/together.png)  

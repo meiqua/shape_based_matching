@@ -266,6 +266,7 @@ void noise_test(){
         Rect roi(0, 0, stride*m , stride*n);
 
         test_img = test_img(roi).clone();
+
         Timer timer;
         auto matches = detector.match(test_img, 90, ids);
         timer.out();
@@ -297,27 +298,22 @@ void noise_test(){
             auto templ = detector.getTemplates("test",
                                                match.template_id);
 
-            int cols = templ[0].width + 1;
-            int rows = templ[0].height+ 1;
-            cv::Mat view = cv::Mat(rows, cols, CV_8UC1, cv::Scalar(0));
-            for(int i=0; i<templ[0].features.size(); i++){
-                auto feat = templ[0].features[i];
-                assert(feat.y<rows);
-                assert(feat.x<cols);
-                view.at<uchar>(feat.y, feat.x) = 255;
-            }
-            view = view>0;
-            imshow("test", view);
-            waitKey(0);
-
             int x =  templ[0].width + match.x;
             int y = templ[0].height + match.y;
             int r = templ[0].width/2;
-            Scalar color(255, rand()%255, rand()%255);
+            cv::Vec3b randColor;
+            randColor[0] = rand()%155 + 100;
+            randColor[1] = rand()%155 + 100;
+            randColor[2] = rand()%155 + 100;
+
+            for(int i=0; i<templ[0].features.size(); i++){
+                auto feat = templ[0].features[i];
+                cv::circle(test_img, {feat.x+match.x, feat.y+match.y}, 2, randColor, -1);
+            }
 
             cv::putText(test_img, to_string(int(round(match.similarity))),
-                        Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, color);
-            cv::rectangle(test_img, {match.x, match.y}, {x, y}, color, 2);
+                        Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, randColor);
+            cv::rectangle(test_img, {match.x, match.y}, {x, y}, randColor, 2);
 
             std::cout << "\nmatch.template_id: " << match.template_id << std::endl;
             std::cout << "match.similarity: " << match.similarity << std::endl;
