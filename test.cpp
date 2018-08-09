@@ -330,7 +330,6 @@ void noise_test(){
     }
 }
 int main(){
-//    scale_test();
     noise_test();
     return 0;
 }
