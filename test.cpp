@@ -175,12 +175,15 @@ void angle_test(){
         Mat img = padded_img(roi).clone();
         assert(img.isContinuous());
 
-        imshow("test", padded_img);
-        waitKey(0);
+        cvtColor(img, img, CV_BGR2GRAY);
+
+        std::cout << "test img size: " << img.rows * img.cols << std::endl;
 
         Timer timer;
         auto matches = detector.match(img, 90, ids);
         timer.out();
+
+        if(img.channels() == 1) cvtColor(img, img, CV_GRAY2BGR);
 
         std::cout << "matches.size(): " << matches.size() << std::endl;
         size_t top5 = 50;
@@ -326,6 +329,6 @@ void noise_test(){
     }
 }
 int main(){
-    noise_test();
+    angle_test();
     return 0;
 }

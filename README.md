@@ -16,7 +16,7 @@ Speed is also important. Thanks to the speeding up magic in linemod, we can hand
 
 ## improvment
 
-Comparing to opencv linemod src, we improve from 4 aspects:  
+Comparing to opencv linemod src, we improve from 5 aspects:  
 
 1. delete depth modality so we don't need virtual func, this may speed up  
 
@@ -25,6 +25,8 @@ Comparing to opencv linemod src, we improve from 4 aspects:
 3. simple codes for rotating and scaling img for training. see test.cpp for examples  
 
 4. nms for accurate edge selection  
+
+5. one channel orientation extraction to save time, about 1/3 faster for gray img
 
 ## some test
 

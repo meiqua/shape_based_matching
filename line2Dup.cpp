@@ -280,78 +280,92 @@ void hysteresisGradient(Mat &magnitude, Mat &quantized_angle,
 static void quantizedOrientations(const Mat &src, Mat &magnitude,
                                   Mat &angle, float threshold)
 {
-    magnitude.create(src.size(), CV_32F);
-
-    // Allocate temporary buffers
-    Size size = src.size();
-    Mat sobel_3dx;              // per-channel horizontal derivative
-    Mat sobel_3dy;              // per-channel vertical derivative
-    Mat sobel_dx(size, CV_32F); // maximum horizontal derivative
-    Mat sobel_dy(size, CV_32F); // maximum vertical derivative
-    Mat sobel_ag;               // final gradient orientation (unquantized)
     Mat smoothed;
-
     // Compute horizontal and vertical image derivatives on all color channels separately
     static const int KERNEL_SIZE = 7;
     // For some reason cvSmooth/cv::GaussianBlur, cvSobel/cv::Sobel have different defaults for border handling...
     GaussianBlur(src, smoothed, Size(KERNEL_SIZE, KERNEL_SIZE), 0, 0, BORDER_REPLICATE);
-    Sobel(smoothed, sobel_3dx, CV_16S, 1, 0, 3, 1.0, 0.0, BORDER_REPLICATE);
-    Sobel(smoothed, sobel_3dy, CV_16S, 0, 1, 3, 1.0, 0.0, BORDER_REPLICATE);
 
-    short *ptrx = (short *)sobel_3dx.data;
-    short *ptry = (short *)sobel_3dy.data;
-    float *ptr0x = (float *)sobel_dx.data;
-    float *ptr0y = (float *)sobel_dy.data;
-    float *ptrmg = (float *)magnitude.data;
+    if(src.channels() == 1){
+        Mat sobel_dx, sobel_dy, magnitude, sobel_ag;
+        Sobel(smoothed, sobel_dx, CV_32F, 1, 0, 3, 1.0, 0.0, BORDER_REPLICATE);
+        Sobel(smoothed, sobel_dy, CV_32F, 0, 1, 3, 1.0, 0.0, BORDER_REPLICATE);
+        magnitude = sobel_dx.mul(sobel_dx) + sobel_dy.mul(sobel_dy);
+        phase(sobel_dx, sobel_dy, sobel_ag, true);
+        hysteresisGradient(magnitude, angle, sobel_ag, threshold * threshold);
 
-    const int length1 = static_cast<const int>(sobel_3dx.step1());
-    const int length2 = static_cast<const int>(sobel_3dy.step1());
-    const int length3 = static_cast<const int>(sobel_dx.step1());
-    const int length4 = static_cast<const int>(sobel_dy.step1());
-    const int length5 = static_cast<const int>(magnitude.step1());
-    const int length0 = sobel_3dy.cols * 3;
+    }else{
 
-    for (int r = 0; r < sobel_3dy.rows; ++r)
-    {
-        int ind = 0;
+        magnitude.create(src.size(), CV_32F);
 
-        for (int i = 0; i < length0; i += 3)
+        // Allocate temporary buffers
+        Size size = src.size();
+        Mat sobel_3dx;              // per-channel horizontal derivative
+        Mat sobel_3dy;              // per-channel vertical derivative
+        Mat sobel_dx(size, CV_32F); // maximum horizontal derivative
+        Mat sobel_dy(size, CV_32F); // maximum vertical derivative
+        Mat sobel_ag;               // final gradient orientation (unquantized)
+
+        Sobel(smoothed, sobel_3dx, CV_16S, 1, 0, 3, 1.0, 0.0, BORDER_REPLICATE);
+        Sobel(smoothed, sobel_3dy, CV_16S, 0, 1, 3, 1.0, 0.0, BORDER_REPLICATE);
+
+        short *ptrx = (short *)sobel_3dx.data;
+        short *ptry = (short *)sobel_3dy.data;
+        float *ptr0x = (float *)sobel_dx.data;
+        float *ptr0y = (float *)sobel_dy.data;
+        float *ptrmg = (float *)magnitude.data;
+
+        const int length1 = static_cast<const int>(sobel_3dx.step1());
+        const int length2 = static_cast<const int>(sobel_3dy.step1());
+        const int length3 = static_cast<const int>(sobel_dx.step1());
+        const int length4 = static_cast<const int>(sobel_dy.step1());
+        const int length5 = static_cast<const int>(magnitude.step1());
+        const int length0 = sobel_3dy.cols * 3;
+
+        for (int r = 0; r < sobel_3dy.rows; ++r)
         {
-            // Use the gradient orientation of the channel whose magnitude is largest
-            int mag1 = ptrx[i + 0] * ptrx[i + 0] + ptry[i + 0] * ptry[i + 0];
-            int mag2 = ptrx[i + 1] * ptrx[i + 1] + ptry[i + 1] * ptry[i + 1];
-            int mag3 = ptrx[i + 2] * ptrx[i + 2] + ptry[i + 2] * ptry[i + 2];
+            int ind = 0;
 
-            if (mag1 >= mag2 && mag1 >= mag3)
+            for (int i = 0; i < length0; i += 3)
             {
-                ptr0x[ind] = ptrx[i];
-                ptr0y[ind] = ptry[i];
-                ptrmg[ind] = (float)mag1;
+                // Use the gradient orientation of the channel whose magnitude is largest
+                int mag1 = ptrx[i + 0] * ptrx[i + 0] + ptry[i + 0] * ptry[i + 0];
+                int mag2 = ptrx[i + 1] * ptrx[i + 1] + ptry[i + 1] * ptry[i + 1];
+                int mag3 = ptrx[i + 2] * ptrx[i + 2] + ptry[i + 2] * ptry[i + 2];
+
+                if (mag1 >= mag2 && mag1 >= mag3)
+                {
+                    ptr0x[ind] = ptrx[i];
+                    ptr0y[ind] = ptry[i];
+                    ptrmg[ind] = (float)mag1;
+                }
+                else if (mag2 >= mag1 && mag2 >= mag3)
+                {
+                    ptr0x[ind] = ptrx[i + 1];
+                    ptr0y[ind] = ptry[i + 1];
+                    ptrmg[ind] = (float)mag2;
+                }
+                else
+                {
+                    ptr0x[ind] = ptrx[i + 2];
+                    ptr0y[ind] = ptry[i + 2];
+                    ptrmg[ind] = (float)mag3;
+                }
+                ++ind;
             }
-            else if (mag2 >= mag1 && mag2 >= mag3)
-            {
-                ptr0x[ind] = ptrx[i + 1];
-                ptr0y[ind] = ptry[i + 1];
-                ptrmg[ind] = (float)mag2;
-            }
-            else
-            {
-                ptr0x[ind] = ptrx[i + 2];
-                ptr0y[ind] = ptry[i + 2];
-                ptrmg[ind] = (float)mag3;
-            }
-            ++ind;
+            ptrx += length1;
+            ptry += length2;
+            ptr0x += length3;
+            ptr0y += length4;
+            ptrmg += length5;
         }
-        ptrx += length1;
-        ptry += length2;
-        ptr0x += length3;
-        ptr0y += length4;
-        ptrmg += length5;
+
+        // Calculate the final gradient orientations
+        phase(sobel_dx, sobel_dy, sobel_ag, true);
+        hysteresisGradient(magnitude, angle, sobel_ag, threshold * threshold);
     }
 
-    // Calculate the final gradient orientations
-    phase(sobel_dx, sobel_dy, sobel_ag, true);
-    hysteresisGradient(magnitude, angle, sobel_ag, threshold * threshold);
+
 }
 
 ColorGradientPyramid::ColorGradientPyramid(const Mat &_src, const Mat &_mask,
