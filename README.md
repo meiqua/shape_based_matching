@@ -26,7 +26,7 @@ Comparing to opencv linemod src, we improve from 5 aspects:
 
 4. nms for accurate edge selection  
 
-5. one channel orientation extraction to save time, about 1/3 faster for gray img
+5. one channel orientation extraction to save time, slightly faster for gray img
 
 ## some test
 
