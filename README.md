@@ -28,6 +28,8 @@ Comparing to opencv linemod src, we improve from 5 aspects:
 
 5. one channel orientation extraction to save time, slightly faster for gray img
 
+6. use MIPP for multiple platforms SIMD, x86 SSE AVX, arm neon, for example.
+
 ## some test
 
 ### Example for circle shape
