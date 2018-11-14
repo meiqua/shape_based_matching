@@ -328,7 +328,24 @@ void noise_test(){
         std::cout << "test end" << std::endl;
     }
 }
+
+void MIPP_test(){
+    std::cout << "MIPP tests" << std::endl;
+    std::cout << "----------" << std::endl << std::endl;
+
+    std::cout << "Instr. type:       " << mipp::InstructionType                  << std::endl;
+    std::cout << "Instr. full type:  " << mipp::InstructionFullType              << std::endl;
+    std::cout << "Instr. version:    " << mipp::InstructionVersion               << std::endl;
+    std::cout << "Instr. size:       " << mipp::RegisterSizeBit       << " bits" << std::endl;
+    std::cout << "Instr. lanes:      " << mipp::Lanes                            << std::endl;
+    std::cout << "64-bit support:    " << (mipp::Support64Bit    ? "yes" : "no") << std::endl;
+    std::cout << "Byte/word support: " << (mipp::SupportByteWord ? "yes" : "no") << std::endl;
+    std::cout << "----------" << std::endl << std::endl;
+}
+
 int main(){
+
+//    MIPP_test();
     angle_test();
     return 0;
 }

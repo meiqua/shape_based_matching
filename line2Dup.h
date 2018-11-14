@@ -5,6 +5,8 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <map>
 
+#include "mipp.h"  // for SIMD in different platforms
+
 namespace line2Dup
 {
 
@@ -277,6 +279,7 @@ public:
             info.push_back(float((*it)["scale"]));
             infos.push_back(info);
         }
+        return infos;
     }
 
     void produce_infos(){
