@@ -59,7 +59,7 @@ void scale_test(){
         }
         detector.writeClasses(prefix+"case0/%s_templ.yaml");
         shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "circle_info.yaml");
-        std::cout << "train end" << std::endl;
+        std::cout << "train end" << std::endl << std::endl;
 
     }else if(mode=="test"){
         std::vector<std::string> ids;
@@ -112,7 +112,7 @@ void scale_test(){
         imshow("img", img);
         waitKey(0);
 
-        std::cout << "test end" << std::endl;
+        std::cout << "test end" << std::endl << std::endl;
     }
 }
 
@@ -155,7 +155,7 @@ void angle_test(){
         }
         detector.writeClasses(prefix+"case1/%s_templ.yaml");
         shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "case1/test_info.yaml");
-        std::cout << "train end" << std::endl;
+        std::cout << "train end" << std::endl << std::endl;
     }else if(mode=="test"){
         std::vector<std::string> ids;
         ids.push_back("test");
@@ -163,7 +163,7 @@ void angle_test(){
 
         Mat test_img = imread(prefix+"case1/test.png");
 
-        int padding = 250;
+        int padding = 500;
         cv::Mat padded_img = cv::Mat(test_img.rows + 2*padding,
                                      test_img.cols + 2*padding, test_img.type(), cv::Scalar::all(0));
         test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
@@ -186,7 +186,7 @@ void angle_test(){
         if(img.channels() == 1) cvtColor(img, img, CV_GRAY2BGR);
 
         std::cout << "matches.size(): " << matches.size() << std::endl;
-        size_t top5 = 50;
+        size_t top5 = 5;
         if(top5>matches.size()) top5=matches.size();
         for(size_t i=0; i<top5; i++){
             auto match = matches[i];
@@ -222,7 +222,7 @@ void angle_test(){
         imshow("img", img);
         waitKey(0);
 
-        std::cout << "test end" << std::endl;
+        std::cout << "test end" << std::endl << std::endl;
     }
 }
 
@@ -255,7 +255,7 @@ void noise_test(){
         }
         detector.writeClasses(prefix+"case2/%s_templ.yaml");
         shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "case2/test_info.yaml");
-        std::cout << "train end" << std::endl;
+        std::cout << "train end" << std::endl << std::endl;
     }else if(mode=="test"){
         std::vector<std::string> ids;
         ids.push_back("test");
@@ -325,7 +325,7 @@ void noise_test(){
         imshow("img", test_img);
         waitKey(0);
 
-        std::cout << "test end" << std::endl;
+        std::cout << "test end" << std::endl << std::endl;
     }
 }
 
@@ -346,8 +346,8 @@ void MIPP_test(){
 int main(){
 
     MIPP_test();
-//    angle_test();
-    scale_test();
-    noise_test();
+    angle_test();
+//    scale_test();
+//    noise_test();
     return 0;
 }

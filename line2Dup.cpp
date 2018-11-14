@@ -15,7 +15,7 @@ public:
             (clock_::now() - beg_).count(); }
     void out(std::string message = ""){
         double t = elapsed();
-        std::cout << message << "  elasped time:" << t << "s" << std::endl;
+        std::cout << message << "\nelasped time:" << t << "s\n" << std::endl;
         reset();
     }
 private:
@@ -559,11 +559,8 @@ static void orUnaligned8u(const uchar *src, const int src_stride,
             res_v.store((int8_t*)dst + c);
         }
 
-        if(c != width){ // some left bytes
-            c -= mipp::N<int8_t>(); // roll back
-            for(; c<width; c++)
-                dst[c] |= src[c];
-        }
+        for(; c<width; c++)
+            dst[c] |= src[c];
 
         // Advance to next row
         src += src_stride;
@@ -619,7 +616,7 @@ static void computeResponseMaps(const Mat &src, std::vector<Mat> &response_maps)
     }
 
     // LUT is designed for 128 SIMD, so it's hard to fit to 256 or 512,
-    // and speed is even not that slow for no SIMD possibly due to compiler opt
+    // Speed is not that slow for no SIMD thanks to compiler
     // so I'm not going to shift to MIPP
 #if CV_SSSE3
     volatile bool haveSSSE3 = checkHardwareSupport(CV_CPU_SSSE3);
@@ -770,11 +767,8 @@ static void similarity(const std::vector<Mat> &linear_memories, const Template &
             res_v.store((int16_t*)dst_ptr + j);
         }
 
-        if(j != template_positions){ // some left bytes
-            j -= mipp::N<int16_t>(); // roll back
-            for(; j<template_positions; j++)
-                dst_ptr[j] += short(lm_ptr[j]);
-        }
+        for(; j<template_positions; j++)
+            dst_ptr[j] += short(lm_ptr[j]);
     }
 }
 
@@ -899,11 +893,8 @@ static void similarity_64(const std::vector<Mat> &linear_memories, const Templat
             res_v.store((int8_t*)dst_ptr + j);
         }
 
-        if(j != template_positions){ // some left bytes
-            j -= mipp::N<int8_t>(); // roll back
-            for(; j<template_positions; j++)
-                dst_ptr[j] += lm_ptr[j];
-        }
+        for(; j<template_positions; j++)
+            dst_ptr[j] += lm_ptr[j];
     }
 }
 
@@ -940,7 +931,7 @@ static void similarityLocal_64(const std::vector<Mat> &linear_memories, const Te
 
             if(mipp::N<int8_t>() > 16){ // 256 or 512 bits SIMD
                 for (int row = 0; row < 16; row += mipp::N<int8_t>()/16){
-                    mipp::Reg<int8_t> dst_v((int8_t*)dst_ptr + row*16);
+                    mipp::Reg<int8_t> dst_v((int8_t*)dst_ptr);
 
                     // load lm_ptr, 16 bytes once
                     int8_t local_v[mipp::N<int8_t>()];
