@@ -639,26 +639,26 @@ static void computeResponseMaps(const Mat &src, std::vector<Mat> &response_maps)
             if(mipp::N<int8_t>() == 1 || no_max || no_shuff){ // no SIMD
                 for (int i = 0; i < src.rows * src.cols; ++i)
                     map_data[i] = std::max(lut_low[lsb4_data[i]], lut_low[msb4_data[i] + 16]);
-
             }
-//            else if(mipp::N<int8_t>() == 16){ // 128 SIMD, no add base
-//                const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
-//                mipp::Reg<int8_t> lut_low_v((int8_t*)lut_low);
-//                mipp::Reg<int8_t> lut_high_v((int8_t*)lut_low + 16);
+            else if(mipp::N<int8_t>() == 16){ // 128 SIMD, no add base
 
-//                for (int i = 0; i < src.rows * src.cols; i += mipp::N<int8_t>()){
-//                    mipp::Reg<int8_t> low_mask((int8_t*)lsb4_data + i);
-//                    mipp::Reg<int8_t> high_mask((int8_t*)msb4_data + i);
+                const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
+                mipp::Reg<int8_t> lut_low_v((int8_t*)lut_low);
+                mipp::Reg<int8_t> lut_high_v((int8_t*)lut_low + 16);
 
-//                    mipp::Reg<int8_t> low_res = mipp::shuff(lut_low_v, low_mask);
-//                    mipp::Reg<int8_t> high_res = mipp::shuff(lut_high_v, high_mask);
+                for (int i = 0; i < src.rows * src.cols; i += mipp::N<int8_t>()){
+                    mipp::Reg<int8_t> low_mask((int8_t*)lsb4_data + i);
+                    mipp::Reg<int8_t> high_mask((int8_t*)msb4_data + i);
 
-//                    mipp::Reg<int8_t> result = mipp::max(low_res, high_res);
-//                    result.store((int8_t*)map_data + i);
-//                }
-//            }
-            else if(mipp::N<int8_t>() == 16 && mipp::N<int8_t>() == 32
-                    && mipp::N<int8_t>() == 64){ //128 256 512 SIMD
+                    mipp::Reg<int8_t> low_res = mipp::shuff(lut_low_v, low_mask);
+                    mipp::Reg<int8_t> high_res = mipp::shuff(lut_high_v, high_mask);
+
+                    mipp::Reg<int8_t> result = mipp::max(low_res, high_res);
+                    result.store((int8_t*)map_data + i);
+                }
+            }
+            else if(mipp::N<int8_t>() == 16 || mipp::N<int8_t>() == 32
+                    || mipp::N<int8_t>() == 64){ //128 256 512 SIMD
                 CV_Assert((src.rows * src.cols) % mipp::N<int8_t>() == 0);
 
                 int8_t lut_temp[mipp::N<int8_t>()] = {0};
