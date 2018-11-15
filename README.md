@@ -3,6 +3,14 @@
 try to implement halcon shape based matching, refer to machine vision algorithms and applications, page 317 3.11.5, written by halcon engineers  
 We find that shape based matching is the same as linemod. [linemod pdf](Gradient%20Response%20Maps%20for%20Real-TimeDetection%20of%20Textureless%20Objects.pdf)  
 
+## steps
+
+1. change test.cpp line 9 prefix to top level folder
+
+2. in cmakeList line 23, change /opt/ros/kinetic to somewhere opencv3 can be found(if opencv3 is installed in default env then don't need to)
+
+3. cmake make & run. To learn usage, see different tests in test.cpp. Particularly, scale_test are fully commented.
+
 ## thoughts about the method
 
 The key of shape based matching, or linemod, is using gradient orientation only. Though both edge and orientation are resistant to disturbance,

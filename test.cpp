@@ -3,9 +3,87 @@
 #include <iostream>
 #include <assert.h>
 #include <chrono>
-#include <opencv2/dnn.hpp>
 using namespace std;
 using namespace cv;
+
+static std::string prefix = "/home/meiqua/shape_based_matching/test/";
+
+// NMS, got from cv::dnn so we don't need opencv contrib
+// just collapse it
+namespace  cv_dnn {
+namespace
+{
+
+template <typename T>
+static inline bool SortScorePairDescend(const std::pair<float, T>& pair1,
+                          const std::pair<float, T>& pair2)
+{
+    return pair1.first > pair2.first;
+}
+
+} // namespace
+
+inline void GetMaxScoreIndex(const std::vector<float>& scores, const float threshold, const int top_k,
+                      std::vector<std::pair<float, int> >& score_index_vec)
+{
+    for (size_t i = 0; i < scores.size(); ++i)
+    {
+        if (scores[i] > threshold)
+        {
+            score_index_vec.push_back(std::make_pair(scores[i], i));
+        }
+    }
+    std::stable_sort(score_index_vec.begin(), score_index_vec.end(),
+                     SortScorePairDescend<int>);
+    if (top_k > 0 && top_k < (int)score_index_vec.size())
+    {
+        score_index_vec.resize(top_k);
+    }
+}
+
+template <typename BoxType>
+inline void NMSFast_(const std::vector<BoxType>& bboxes,
+      const std::vector<float>& scores, const float score_threshold,
+      const float nms_threshold, const float eta, const int top_k,
+      std::vector<int>& indices, float (*computeOverlap)(const BoxType&, const BoxType&))
+{
+    CV_Assert(bboxes.size() == scores.size());
+    std::vector<std::pair<float, int> > score_index_vec;
+    GetMaxScoreIndex(scores, score_threshold, top_k, score_index_vec);
+
+    // Do nms.
+    float adaptive_threshold = nms_threshold;
+    indices.clear();
+    for (size_t i = 0; i < score_index_vec.size(); ++i) {
+        const int idx = score_index_vec[i].second;
+        bool keep = true;
+        for (int k = 0; k < (int)indices.size() && keep; ++k) {
+            const int kept_idx = indices[k];
+            float overlap = computeOverlap(bboxes[idx], bboxes[kept_idx]);
+            keep = overlap <= adaptive_threshold;
+        }
+        if (keep)
+            indices.push_back(idx);
+        if (keep && eta < 1 && adaptive_threshold > 0.5) {
+          adaptive_threshold *= eta;
+        }
+    }
+}
+
+template <typename T>
+static inline float rectOverlap(const T& a, const T& b)
+{
+    return 1.f - static_cast<float>(jaccardDistance(a, b));
+}
+
+void NMSBoxes(const std::vector<Rect>& bboxes, const std::vector<float>& scores,
+                          const float score_threshold, const float nms_threshold,
+                          std::vector<int>& indices, const float eta=1, const int top_k=0)
+{
+    NMSFast_(bboxes, scores, score_threshold, nms_threshold, eta, top_k, indices, rectOverlap);
+}
+
+}
 
 class Timer
 {
@@ -17,7 +95,7 @@ public:
             (clock_::now() - beg_).count(); }
     void out(std::string message = ""){
         double t = elapsed();
-        std::cout << message << "  elasped time:" << t << "s" << std::endl;
+        std::cout << message << "\nelasped time:" << t << "s" << std::endl;
         reset();
     }
 private:
@@ -25,8 +103,6 @@ private:
     typedef std::chrono::duration<double, std::ratio<1> > second_;
     std::chrono::time_point<clock_> beg_;
 };
-
-static std::string prefix = "/home/meiqua/shape_based_matching/test/";
 
 void circle_gen(){
     Mat bg = Mat(800, 800, CV_8UC3, {0, 0, 0});
@@ -37,6 +113,9 @@ void circle_gen(){
 
 void scale_test(){
     int num_feature = 150;
+
+    // feature numbers(how many ori in one templates?)
+    // two pyramids, higher pyramid(more pixels) in stride 4, lower in stride 8
     line2Dup::Detector detector(num_feature, {4, 8});
 
     string mode = "train";
@@ -44,30 +123,43 @@ void scale_test(){
     if(mode == "train"){
         Mat img = cv::imread(prefix+"case0/templ/circle.png");
         shape_based_matching::shapeInfo shapes(img);
+
         shapes.scale_range = {0.1f, 1};
         shapes.scale_step = 0.01f;
         shapes.produce_infos();
+
         std::vector<shape_based_matching::shapeInfo::shape_and_info> infos_have_templ;
         string class_id = "circle";
         for(auto& info: shapes.infos){
+
+            // template img, id, mask,
+            //feature numbers(missing it means using the detector initial num)
             int templ_id = detector.addTemplate(info.src, class_id, info.mask,
                                                 int(num_feature*info.scale));
             std::cout << "templ_id: " << templ_id << std::endl;
-            if(templ_id != -1){
+
+            if(templ_id != -1){  // only record info when we successfully add template
                 infos_have_templ.push_back(info);
             }
         }
+
+        // save templates
         detector.writeClasses(prefix+"case0/%s_templ.yaml");
+
+        // save infos, in this simple case infos are not used
         shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "circle_info.yaml");
         std::cout << "train end" << std::endl << std::endl;
 
     }else if(mode=="test"){
         std::vector<std::string> ids;
+
+        // read templates
         ids.push_back("circle");
         detector.readClasses(ids, prefix+"case0/%s_templ.yaml");
 
         Mat test_img = imread(prefix+"case0/3.png");
 
+        // make the img having 32*n width & height
         int stride = 32;
         int n = test_img.rows/stride;
         int m = test_img.cols/stride;
@@ -76,7 +168,13 @@ void scale_test(){
         assert(img.isContinuous());
 
         Timer timer;
+        // match, img, min socre, ids
         auto matches = detector.match(img, 75, ids);
+        // one output match:
+        // x: top left
+        // y: bottom right
+        // template_id: used to find templates
+        // similarity: scores, 100 is best
         timer.out();
 
         std::cout << "matches.size(): " << matches.size() << std::endl;
@@ -86,6 +184,11 @@ void scale_test(){
             auto match = matches[i];
             auto templ = detector.getTemplates("circle",
                                                match.template_id);
+            // template:
+            // nums: num_pyramids * num_modality (modality, depth or RGB, always 1 here)
+            // template[0]: highest pyrimad(more pixels)
+            // template[0].width: actual width of the matched template
+            // In this case, we can regard width/2 = radius
             int x =  templ[0].width/2 + match.x;
             int y = templ[0].height/2 + match.y;
             int r = templ[0].width/2;
@@ -95,6 +198,7 @@ void scale_test(){
                         Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, color);
             cv::circle(img, {x, y}, r, color, 2);
 
+            //show templates or not
 //            int cols = templ[0].width + 1;
 //            int rows = templ[0].height+ 1;
 //            cv::Mat view = cv::Mat(rows, cols, CV_8UC1, cv::Scalar(0));
@@ -294,7 +398,7 @@ void noise_test(){
             boxes.push_back(box);
             scores.push_back(match.similarity);
         }
-        cv::dnn::NMSBoxes(boxes, scores, 0, 0.5f, idxs);
+        cv_dnn::NMSBoxes(boxes, scores, 0, 0.5f, idxs);
 
         for(auto idx: idxs){
             auto match = matches[idx];
@@ -355,8 +459,8 @@ void MIPP_test(){
 int main(){
 
     MIPP_test();
+    scale_test();
 //    angle_test();
-//    scale_test();
-    noise_test();
+//    noise_test();
     return 0;
 }
