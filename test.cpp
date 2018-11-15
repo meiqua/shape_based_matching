@@ -138,6 +138,7 @@ void scale_test(){
                                                 int(num_feature*info.scale));
             std::cout << "templ_id: " << templ_id << std::endl;
 
+            // may fail when asking for too many feature_nums for small training img
             if(templ_id != -1){  // only record info when we successfully add template
                 infos_have_templ.push_back(info);
             }
