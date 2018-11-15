@@ -641,7 +641,7 @@ static void computeResponseMaps(const Mat &src, std::vector<Mat> &response_maps)
                     map_data[i] = std::max(lut_low[lsb4_data[i]], lut_low[msb4_data[i] + 16]);
 
             }
-//            else if(mipp::N<int8_t>() == 16){ // 128 SIMD
+//            else if(mipp::N<int8_t>() == 16){ // 128 SIMD, no add base
 //                const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
 //                mipp::Reg<int8_t> lut_low_v((int8_t*)lut_low);
 //                mipp::Reg<int8_t> lut_high_v((int8_t*)lut_low + 16);
