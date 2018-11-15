@@ -625,7 +625,10 @@ template <typename T> inline reg   cmask        (const uint32_t[nElReg<T>()])   
 template <typename T> inline reg   cmask2       (const uint32_t[nElReg<T>()/2])   { errorMessage<T>("cmask2");        exit(-1); }
 template <typename T> inline reg   cmask4       (const uint32_t[nElReg<T>()/4])   { errorMessage<T>("cmask4");        exit(-1); }
 #endif
+
+# define no_shuff__
 template <typename T> inline reg   shuff        (const reg, const reg)            { errorMessage<T>("shuff");         exit(-1); }
+
 template <typename T> inline reg   shuff2       (const reg, const reg)            { errorMessage<T>("shuff2");        exit(-1); }
 template <typename T> inline reg   shuff4       (const reg, const reg)            { errorMessage<T>("shuff4");        exit(-1); }
 template <typename T> inline reg   interleavelo (const reg, const reg)            { errorMessage<T>("interleavelo");  exit(-1); }
@@ -672,7 +675,10 @@ template <typename T> inline reg   sub          (const reg, const reg)          
 template <typename T> inline reg   mul          (const reg, const reg)            { errorMessage<T>("mul");           exit(-1); }
 template <typename T> inline reg   div          (const reg, const reg)            { errorMessage<T>("div");           exit(-1); }
 template <typename T> inline reg   min          (const reg, const reg)            { errorMessage<T>("min");           exit(-1); }
+
+# define no_max__
 template <typename T> inline reg   max          (const reg, const reg)            { errorMessage<T>("max");           exit(-1); }
+
 template <typename T> inline reg   msb          (const reg)                       { errorMessage<T>("msb");           exit(-1); }
 template <typename T> inline reg   msb          (const reg, const reg)            { errorMessage<T>("msb");           exit(-1); }
 template <typename T> inline msk   sign         (const reg)                       { errorMessage<T>("sign");          exit(-1); }

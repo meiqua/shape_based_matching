@@ -615,50 +615,88 @@ static void computeResponseMaps(const Mat &src, std::vector<Mat> &response_maps)
         }
     }
 
-    // LUT is designed for 128 SIMD, so it's hard to fit to 256 or 512,
-    // Speed is not that slow for no SIMD thanks to compiler
-    // so I'm not going to shift to MIPP
-#if CV_SSSE3
-    volatile bool haveSSSE3 = checkHardwareSupport(CV_CPU_SSSE3);
-    if (haveSSSE3)
     {
-        const __m128i *lut = reinterpret_cast<const __m128i *>(SIMILARITY_LUT);
-
-        __m128i *map_data = response_maps[ori].ptr<__m128i>();
-        __m128i *lsb4_data = lsb4.ptr<__m128i>();
-        __m128i *msb4_data = msb4.ptr<__m128i>();
-
-        for (int ori = 0; ori < 8; ++ori)
-        {
-            // Precompute the 2D response map S_i (section 2.4)
-            for (int i = 0; i < (src.rows * src.cols) / 16; ++i)
-            {
-                // Using SSE shuffle for table lookup on 4 orientations at a time
-                // The most/least significant 4 bits are used as the LUT index
-                __m128i res1 = _mm_shuffle_epi8(lut[2 * ori + 0], lsb4_data[i]);
-                __m128i res2 = _mm_shuffle_epi8(lut[2 * ori + 1], msb4_data[i]);
-
-                // Combine the results into a single similarity score
-                map_data[i] = _mm_max_epu8(res1, res2);
-            }
-        }
-    }
-    else
-#endif
-    {
-        // For each of the 8 quantized orientations...
-
         uchar *lsb4_data = lsb4.ptr<uchar>();
         uchar *msb4_data = msb4.ptr<uchar>();
 
+        bool no_max = true;
+        bool no_shuff = true;
+
+#ifdef has_max_int8_t
+        no_max = false;
+#endif
+
+#ifdef has_shuff_int8_t
+        no_shuff = false;
+#endif
+        // LUT is designed for 128 bits SIMD, so quite triky for others
+
+        // For each of the 8 quantized orientations...
         for (int ori = 0; ori < 8; ++ori){
             uchar *map_data = response_maps[ori].ptr<uchar>();
             const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
-            const uchar *lut_hi = lut_low + 16;
 
-            for (int i = 0; i < src.rows * src.cols; ++i)
-                map_data[i] = std::max(lut_low[lsb4_data[i]], lut_hi[msb4_data[i]]);
+            if(mipp::N<int8_t>() == 1 || no_max || no_shuff){ // no SIMD
+                for (int i = 0; i < src.rows * src.cols; ++i)
+                    map_data[i] = std::max(lut_low[lsb4_data[i]], lut_low[msb4_data[i] + 16]);
+
+            }
+//            else if(mipp::N<int8_t>() == 16){ // 128 SIMD
+//                const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
+//                mipp::Reg<int8_t> lut_low_v((int8_t*)lut_low);
+//                mipp::Reg<int8_t> lut_high_v((int8_t*)lut_low + 16);
+
+//                for (int i = 0; i < src.rows * src.cols; i += mipp::N<int8_t>()){
+//                    mipp::Reg<int8_t> low_mask((int8_t*)lsb4_data + i);
+//                    mipp::Reg<int8_t> high_mask((int8_t*)msb4_data + i);
+
+//                    mipp::Reg<int8_t> low_res = mipp::shuff(lut_low_v, low_mask);
+//                    mipp::Reg<int8_t> high_res = mipp::shuff(lut_high_v, high_mask);
+
+//                    mipp::Reg<int8_t> result = mipp::max(low_res, high_res);
+//                    result.store((int8_t*)map_data + i);
+//                }
+//            }
+            else if(mipp::N<int8_t>() == 16 && mipp::N<int8_t>() == 32
+                    && mipp::N<int8_t>() == 64){ //128 256 512 SIMD
+                CV_Assert((src.rows * src.cols) % mipp::N<int8_t>() == 0);
+
+                int8_t lut_temp[mipp::N<int8_t>()] = {0};
+
+                for(int slice=0; slice<mipp::N<int8_t>()/16; slice++){
+                    std::copy_n(lut_low, 16, lut_temp+slice*16);
+                }
+                mipp::Reg<int8_t> lut_low_v(lut_temp);
+
+                int8_t base_add_array[mipp::N<int8_t>()] = {0};
+                for(int8_t slice=0; slice<mipp::N<int8_t>(); slice+=16){
+                    std::copy_n(lut_low+16, 16, lut_temp+slice);
+                    std::fill_n(base_add_array+slice, 16, slice);
+                }
+                mipp::Reg<int8_t> base_add(base_add_array);
+                mipp::Reg<int8_t> lut_high_v(lut_temp);
+
+                for (int i = 0; i < src.rows * src.cols; i += mipp::N<int8_t>()){
+                    mipp::Reg<int8_t> mask_low_v((int8_t*)lsb4_data+i);
+                    mipp::Reg<int8_t> mask_high_v((int8_t*)msb4_data+i);
+
+                    mask_low_v += base_add;
+                    mask_high_v += base_add;
+
+                    mipp::Reg<int8_t> shuff_low_result = mipp::shuff(lut_low_v, mask_low_v);
+                    mipp::Reg<int8_t> shuff_high_result = mipp::shuff(lut_high_v, mask_high_v);
+
+                    mipp::Reg<int8_t> result = mipp::max(shuff_low_result, shuff_high_result);
+                    result.store((int8_t*)map_data + i);
+                }
+            }
+            else{
+                for (int i = 0; i < src.rows * src.cols; ++i)
+                    map_data[i] = std::max(lut_low[lsb4_data[i]], lut_low[msb4_data[i] + 16]);
+            }
         }
+
+
     }
 }
 
@@ -755,7 +793,8 @@ static void similarity(const std::vector<Mat> &linear_memories, const Template &
 
         int j = 0;
 
-        for(; j <= template_positions -mipp::N<int16_t>(); j+=mipp::N<int16_t>()){
+        // *2 to avoid int8 read out of range
+        for(; j <= template_positions -mipp::N<int16_t>()*2; j+=mipp::N<int16_t>()){
             mipp::Reg<int8_t> src8_v((int8_t*)lm_ptr + j);
 
             // uchar to short, once for N bytes
@@ -804,7 +843,7 @@ static void similarityLocal(const std::vector<Mat> &linear_memories, const Templ
                     // load lm_ptr, 16 bytes once, for half
                     int8_t local_v[mipp::N<int8_t>()] = {0};
                     for(int slice=0; slice<mipp::N<int8_t>()/16/2; slice++){
-                        memcpy(&local_v[16*slice], lm_ptr, 16);  // std copy has some type constraint
+                        std::copy_n(lm_ptr, 16, &local_v[16*slice]);
                         lm_ptr += W;
                     }
                     mipp::Reg<int8_t> src8_v(local_v);

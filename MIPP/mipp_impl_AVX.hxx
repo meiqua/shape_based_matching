@@ -804,6 +804,7 @@
 		return mipp::loadu<int16_t>(out);
 	}
 
+#define has_shuff_int8_t
 	template <>
 	inline reg shuff<int8_t>(const reg v, const reg cm) {
 		constexpr int N = mipp::N<int8_t>();
@@ -2153,6 +2154,7 @@
 		return _mm256_castsi256_ps(_mm256_max_epi16(_mm256_castps_si256(v1), _mm256_castps_si256(v2)));
 	}
 
+#define has_max_int8_t
 	template <>
 	inline reg max<int8_t>(const reg v1, const reg v2) {
 		return _mm256_castsi256_ps(_mm256_max_epi8(_mm256_castps_si256(v1), _mm256_castps_si256(v2)));

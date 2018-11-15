@@ -3,6 +3,7 @@
 // -------------------------------------------------------------------------------------------------------- X86 SSE-128
 // --------------------------------------------------------------------------------------------------------------------
 #if defined(__SSE__)
+
 	// ---------------------------------------------------------------------------------------------------------- loadu
 	template <>
 	inline reg loadu<float>(const float *mem_addr) {
@@ -1193,6 +1194,7 @@
 		return _mm_castsi128_ps(_mm_shuffle_epi8(_mm_castps_si128(v), _mm_castps_si128(cm)));
 	}
 
+#define has_shuff_int8_t
 	template <>
 	inline reg shuff<int8_t>(const reg v, const reg cm) {
 		return _mm_castsi128_ps(_mm_shuffle_epi8(_mm_castps_si128(v), _mm_castps_si128(cm)));
@@ -2049,6 +2051,7 @@
 	}
 
 #ifdef __SSE4_1__
+#define has_max_int8_t
 	template <>
 	inline reg max<int8_t>(const reg v1, const reg v2) {
 		return _mm_castsi128_ps(_mm_max_epi8(_mm_castps_si128(v1), _mm_castps_si128(v2)));

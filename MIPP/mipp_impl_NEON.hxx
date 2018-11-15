@@ -729,6 +729,7 @@
 		return (reg)vcombine_u8(low, high);
 	}
 
+#define has_shuff_int8_t
 	template <>
 	inline reg shuff<int8_t>(const reg v, const reg cm) {
 		uint8x8x2_t v2 = {{vget_low_u8((uint8x16_t)v), vget_high_u8((uint8x16_t)v)}};
@@ -1879,6 +1880,7 @@
 		return (reg) vmaxq_s16((int16x8_t) v1, (int16x8_t) v2);
 	}
 
+#define has_max_int8_t
 	template <>
 	inline reg max<int8_t>(const reg v1, const reg v2) {
 		return (reg) vmaxq_s8((int8x16_t) v1, (int8x16_t) v2);

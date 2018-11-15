@@ -1051,6 +1051,7 @@
 #endif
 
 #if defined(__AVX512VBMI__)
+#define has_shuff_int8_t
 	template <>
 	inline reg shuff<int8_t>(const reg v, const reg cm) {
 		return _mm512_castsi512_ps(_mm512_permutexvar_epi8(_mm512_castps_si512(v), _mm512_castps_si512(cm)));
@@ -2657,6 +2658,7 @@
 		return _mm512_castsi512_ps(_mm512_max_epi16(_mm512_castps_si512(v1), _mm512_castps_si512(v2)));
 	}
 
+#define has_max_int8_t
 	template <>
 	inline reg max<int8_t>(const reg v1, const reg v2) {
 		return _mm512_castsi512_ps(_mm512_max_epi8(_mm512_castps_si512(v1), _mm512_castps_si512(v2)));
