@@ -975,7 +975,7 @@ static void similarityLocal_64(const std::vector<Mat> &linear_memories, const Te
                     // load lm_ptr, 16 bytes once
                     int8_t local_v[mipp::N<int8_t>()];
                     for(int slice=0; slice<mipp::N<int8_t>()/16; slice++){
-                        memcpy(&local_v[16*slice], lm_ptr, 16);  // std copy has some type constraint
+                        std::copy_n(lm_ptr, 16, &local_v[16*slice]);
                         lm_ptr += W;
                     }
                     mipp::Reg<int8_t> src_v(local_v);
