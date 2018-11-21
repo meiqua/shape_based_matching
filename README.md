@@ -11,7 +11,7 @@ We find that shape based matching is the same as linemod. [linemod pdf](Gradient
 
 3. cmake make & run. To learn usage, see different tests in test.cpp. Particularly, scale_test are fully commented.
 
-NOTE: On windows visual studio, using cmake may fail. I'm not familiar with vs, but I heard that configuring a new project then adding files to it should work. Dependency: opencv; add MIPP folder to include directory.
+NOTE: On windows visual studio, using cmake may fail. I'm not familiar with vs, but I heard that configuring a new project then adding files to it works. Dependency: opencv; add MIPP folder to include directory.
 
 ## thoughts about the method
 
