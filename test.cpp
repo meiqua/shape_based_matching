@@ -460,8 +460,8 @@ void MIPP_test(){
 int main(){
 
     MIPP_test();
-    scale_test();
-//    angle_test();
+//    scale_test();
+    angle_test();
 //    noise_test();
     return 0;
 }
