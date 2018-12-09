@@ -172,8 +172,8 @@ void scale_test(){
         // match, img, min socre, ids
         auto matches = detector.match(img, 75, ids);
         // one output match:
-        // x: top left
-        // y: bottom right
+        // x: top left x
+        // y: top left y
         // template_id: used to find templates
         // similarity: scores, 100 is best
         timer.out();
