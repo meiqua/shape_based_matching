@@ -14,7 +14,7 @@ halcon match solution guide for how to select matching methods([halcon documenta
 
 3. cmake make & run. To learn usage, see different tests in test.cpp. Particularly, scale_test are fully commented.
 
-NOTE: On windows, it's confirmed that visual studio 17 works fine, but there are some problems with MIPP in vs13. You may want old codes without MIPP: [old commit](https://github.com/meiqua/shape_based_matching/tree/fc3560a1a3bc7c6371eacecdb6822244baac17ba)  
+NOTE: On windows, it's confirmed that visual studio 17 works fine, but there are some problems with MIPP in vs13. You may want old codes without [MIPP](https://github.com/aff3ct/MIPP): [old commit](https://github.com/meiqua/shape_based_matching/tree/fc3560a1a3bc7c6371eacecdb6822244baac17ba)  
 
 ## thoughts about the method
 
@@ -41,7 +41,7 @@ Comparing to opencv linemod src, we improve from 6 aspects:
 
 5. one channel orientation extraction to save time, slightly faster for gray img
 
-6. use MIPP for multiple platforms SIMD, x86 SSE AVX, arm neon, for example.
+6. use [MIPP](https://github.com/aff3ct/MIPP) for multiple platforms SIMD, x86 SSE AVX, arm neon, for example.
 
 ## some test
 
