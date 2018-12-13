@@ -45,14 +45,17 @@ Comparing to opencv linemod src, we improve from 6 aspects:
 
 ## some test
 
-### Example for circle shape
+### Example for circle shape  
 
+#### You can imagine how many circles we will find if use edges  
 ![circle1](test/case0/1.jpg)
 ![circle1](test/case0/result/1.png)  
 
+#### Not that circular  
 ![circle2](test/case0/2.jpg)
 ![circle2](test/case0/result/2.png)  
 
+#### Blur  
 ![circle3](test/case0/3.png)
 ![circle3](test/case0/result/3.png)  
 
