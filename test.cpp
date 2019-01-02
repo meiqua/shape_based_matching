@@ -282,7 +282,7 @@ void angle_test(){
 
 //        cvtColor(img, img, CV_BGR2GRAY);
 
-        std::cout << "test img size: " << img.rows * img.cols << std::endl;
+        std::cout << "test img size: " << img.rows * img.cols << std::endl << std::endl;
 
         Timer timer;
         auto matches = detector.match(img, 90, ids);
