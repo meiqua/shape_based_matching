@@ -70,10 +70,27 @@ inline void NMSFast_(const std::vector<BoxType>& bboxes,
     }
 }
 
+
+// copied from opencv 3.4, not exist in 3.0
+template<typename _Tp> static inline
+double jaccardDistance__(const Rect_<_Tp>& a, const Rect_<_Tp>& b) {
+    _Tp Aa = a.area();
+    _Tp Ab = b.area();
+
+    if ((Aa + Ab) <= std::numeric_limits<_Tp>::epsilon()) {
+        // jaccard_index = 1 -> distance = 0
+        return 0.0;
+    }
+
+    double Aab = (a & b).area();
+    // distance = 1 - jaccard_index
+    return 1.0 - Aab / (Aa + Ab - Aab);
+}
+
 template <typename T>
 static inline float rectOverlap(const T& a, const T& b)
 {
-    return 1.f - static_cast<float>(jaccardDistance(a, b));
+    return 1.f - static_cast<float>(jaccardDistance__(a, b));
 }
 
 void NMSBoxes(const std::vector<Rect>& bboxes, const std::vector<float>& scores,
