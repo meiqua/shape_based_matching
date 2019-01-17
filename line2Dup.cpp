@@ -814,7 +814,7 @@ static void similarity(const std::vector<Mat> &linear_memories, const Template &
 static void similarityLocal(const std::vector<Mat> &linear_memories, const Template &templ,
                             Mat &dst, Size size, int T, Point center)
 {
-    CV_Assert(templ.features.size() < 16384);
+    CV_Assert(templ.features.size() < 8192);
 
     int W = size.width / T;
     dst = Mat::zeros(16, 16, CV_16U);
@@ -942,7 +942,7 @@ static void similarityLocal_64(const std::vector<Mat> &linear_memories, const Te
 {
     // Similar to whole-image similarity() above. This version takes a position 'center'
     // and computes the energy in the 16x16 patch centered on it.
-    CV_Assert(templ.features.size() <= 63);
+    CV_Assert(templ.features.size() <= 31);
 
     // Compute the similarity map in a 16x16 patch around center
     int W = size.width / T;
@@ -1203,10 +1203,10 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                     const Template &templ = tp[start];
                     numFeatures += static_cast<int>(templ.features.size());
 
-                    if (templ.features.size() < 64){
+                    if (templ.features.size() < 32){
                         similarityLocal_64(lms[0], templ, similarities2, size, T, Point(x, y));
                         similarities2.convertTo(similarities2, CV_16U);
-                    }else if (templ.features.size() < 16384){
+                    }else if (templ.features.size() < 8192){
                         similarityLocal(lms[0], templ, similarities2, size, T, Point(x, y));
                     }else{
                         CV_Error(Error::StsBadArg, "feature size too large");
