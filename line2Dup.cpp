@@ -761,8 +761,8 @@ static const unsigned char *accessLinearMemory(const std::vector<Mat> &linear_me
 static void similarity(const std::vector<Mat> &linear_memories, const Template &templ,
                        Mat &dst, Size size, int T)
 {
-    // we only have one modality, so 8192*2
-    CV_Assert(templ.features.size() < 16384);
+    // we only have one modality, so 8192*2, due to mipp, back to 8192
+    CV_Assert(templ.features.size() < 8192);
 
     // Decimate input image size by factor of T
     int W = size.width / T;
@@ -882,7 +882,7 @@ static void similarity_64(const std::vector<Mat> &linear_memories, const Templat
     // 255/4 = 63, so up to that many we can add up similarities in 8 bits without worrying
     // about overflow. Therefore here we use _mm_add_epi8 as the workhorse, whereas a more
     // general function would use _mm_add_epi16.
-    CV_Assert(templ.features.size() <= 63);
+    CV_Assert(templ.features.size() < 32);
     /// @todo Handle more than 255/MAX_RESPONSE features!!
 
     // Decimate input image size by factor of T
@@ -942,7 +942,7 @@ static void similarityLocal_64(const std::vector<Mat> &linear_memories, const Te
 {
     // Similar to whole-image similarity() above. This version takes a position 'center'
     // and computes the energy in the 16x16 patch centered on it.
-    CV_Assert(templ.features.size() <= 31);
+    CV_Assert(templ.features.size() < 32);
 
     // Compute the similarity map in a 16x16 patch around center
     int W = size.width / T;
@@ -1138,10 +1138,10 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                 const Template &templ = tp[lowest_start];
                 num_features += static_cast<int>(templ.features.size());
 
-                if (templ.features.size() < 64){
+                if (templ.features.size() < 32){
                     similarity_64(lowest_lm[0], templ, similarities, sizes.back(), lowest_T);
                     similarities.convertTo(similarities, CV_16U);
-                }else if (templ.features.size() < 16384){
+                }else if (templ.features.size() < 8192){
                     similarity(lowest_lm[0], templ, similarities, sizes.back(), lowest_T);
                 }else{
                     CV_Error(Error::StsBadArg, "feature size too large");
