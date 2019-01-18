@@ -41,7 +41,9 @@ Comparing to opencv linemod src, we improve from 6 aspects:
 
 5. one channel orientation extraction to save time, slightly faster for gray img
 
-6. use [MIPP](https://github.com/aff3ct/MIPP) for multiple platforms SIMD, x86 SSE AVX, arm neon, for example.
+6. use [MIPP](https://github.com/aff3ct/MIPP) for multiple platforms SIMD, for example, x86 SSE AVX, arm neon.
+   To have better performance, we have extended MIPP to uint8_t for some instructions.(Otherwise we can only use
+   half feature points to avoid int8_t overflow)
 
 ## some test
 
