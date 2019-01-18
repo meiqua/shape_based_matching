@@ -239,7 +239,7 @@ void scale_test(){
 }
 
 void angle_test(){
-    line2Dup::Detector detector(128, {4, 8});
+    line2Dup::Detector detector(120, {4, 8});
 
     string mode = "train";
     mode = "test";
@@ -308,34 +308,29 @@ void angle_test(){
         if(img.channels() == 1) cvtColor(img, img, CV_GRAY2BGR);
 
         std::cout << "matches.size(): " << matches.size() << std::endl;
-        size_t top5 = 5;
+        size_t top5 = 1;
         if(top5>matches.size()) top5=matches.size();
         for(size_t i=0; i<top5; i++){
             auto match = matches[i];
             auto templ = detector.getTemplates("test",
                                                match.template_id);
 
-//            int cols = templ[0].width + 1;
-//            int rows = templ[0].height+ 1;
-//            cv::Mat view = cv::Mat(rows, cols, CV_8UC1, cv::Scalar(0));
-//            for(int i=0; i<templ[0].features.size(); i++){
-//                auto feat = templ[0].features[i];
-//                assert(feat.y<rows);
-//                assert(feat.x<cols);
-//                view.at<uchar>(feat.y, feat.x) = 255;
-//            }
-//            view = view>0;
-//            imshow("test", view);
-//            waitKey(0);
-
             int x =  templ[0].width/2 + match.x;
             int y = templ[0].height/2 + match.y;
             int r = templ[0].width/2;
-            Scalar color(255, rand()%255, rand()%255);
+            cv::Vec3b randColor;
+            randColor[0] = rand()%155 + 100;
+            randColor[1] = rand()%155 + 100;
+            randColor[2] = rand()%155 + 100;
+
+            for(int i=0; i<templ[0].features.size(); i++){
+                auto feat = templ[0].features[i];
+                cv::circle(img, {feat.x+match.x, feat.y+match.y}, 3, randColor, -1);
+            }
 
             cv::putText(img, to_string(int(round(match.similarity))),
-                        Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, color);
-            cv::circle(img, {x, y}, r, color, 2);
+                        Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, randColor);
+            cv::circle(img, {x, y}, r, randColor, 2);
 
             std::cout << "\nmatch.template_id: " << match.template_id << std::endl;
             std::cout << "match.similarity: " << match.similarity << std::endl;

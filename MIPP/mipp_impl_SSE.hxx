@@ -37,6 +37,11 @@
 		return _mm_loadu_ps((const float*) mem_addr);
 	}
 
+	template <>
+	inline reg loadu<uint8_t>(const uint8_t *mem_addr) {
+		return _mm_loadu_ps((const float*) mem_addr);
+	}
+
 	// ----------------------------------------------------------------------------------------------------------- load
 #ifdef MIPP_ALIGNED_LOADS
 	template <>
@@ -70,6 +75,11 @@
 	inline reg load<int8_t>(const int8_t *mem_addr) {
 		return _mm_load_ps((const float*) mem_addr);
 	}
+
+	template <>
+	inline reg load<uint8_t>(const uint8_t *mem_addr) {
+		return _mm_load_ps((const float*) mem_addr);
+	}
 #else
 	template <>
 	inline reg load<float>(const float *mem_addr) {
@@ -99,6 +109,11 @@
 	template <>
 	inline reg load<int8_t>(const int8_t *mem_addr) {
 		return mipp::loadu<int8_t>(mem_addr);
+	}
+
+	template <>
+	inline reg load<uint8_t>(const uint8_t *mem_addr) {
+		return mipp::loadu<uint8_t>(mem_addr);
 	}
 #endif
 
@@ -135,6 +150,10 @@
 		_mm_storeu_ps((float*) mem_addr, v);
 	}
 
+	template <>
+	inline void storeu<uint8_t>(uint8_t *mem_addr, const reg v) {
+		_mm_storeu_ps((float*) mem_addr, v);
+	}
 	// ---------------------------------------------------------------------------------------------------------- store
 #ifdef MIPP_ALIGNED_LOADS
 	template <>
@@ -168,6 +187,11 @@
 	inline void store<int8_t>(int8_t *mem_addr, const reg v) {
 		_mm_store_ps((float*) mem_addr, v);
 	}
+
+	template <>
+	inline void store<uint8_t>(uint8_t *mem_addr, const reg v) {
+		_mm_store_ps((float*) mem_addr, v);
+	}
 #else
 	template <>
 	inline void store<float>(float *mem_addr, const reg v) {
@@ -197,6 +221,11 @@
 	template <>
 	inline void store<int8_t>(int8_t *mem_addr, const reg v) {
 		mipp::storeu<int8_t>(mem_addr, v);
+	}
+
+	template <>
+	inline void store<uint8_t>(uint8_t *mem_addr, const reg v) {
+		mipp::storeu<uint8_t>(mem_addr, v);
 	}
 #endif
 
@@ -294,6 +323,11 @@
 	template <>
 	inline reg set1<int8_t>(const int8_t val) {
 		return _mm_castsi128_ps(_mm_set1_epi8(val));
+	}
+
+	template <>
+	inline reg set1<uint8_t>(const uint8_t val) {
+		return _mm_castsi128_ps(_mm_set1_epi8(reinterpret_cast<const int8_t&>(val)));
 	}
 
 	template <>
@@ -665,6 +699,11 @@
 	template <>
 	inline reg orb<int8_t>(const reg v1, const reg v2) {
 		return _mm_castsi128_ps(_mm_or_si128(_mm_castps_si128(v1), _mm_castps_si128(v2)));
+	}
+
+	template <>
+	inline reg orb<uint8_t>(const reg v1, const reg v2) {
+		return orb<int8_t>(v1, v2);
 	}
 #endif
 
@@ -1199,6 +1238,11 @@
 	inline reg shuff<int8_t>(const reg v, const reg cm) {
 		return _mm_castsi128_ps(_mm_shuffle_epi8(_mm_castps_si128(v), _mm_castps_si128(cm)));
 	}
+
+	template <>
+	inline reg shuff<uint8_t>(const reg v, const reg cm) {
+		return shuff<int8_t>(v, cm);
+	}
 #endif
 
 	// --------------------------------------------------------------------------------------------------------- shuff2
@@ -1296,6 +1340,11 @@
 	template <>
 	inline reg interleavelo<int8_t>(const reg v1, const reg v2) {
 		return _mm_castsi128_ps(_mm_unpacklo_epi8(_mm_castps_si128(v1), _mm_castps_si128(v2)));
+	}
+
+	template <>
+	inline reg interleavelo<uint8_t>(const reg v1, const reg v2) {
+		return interleavelo<int8_t>(v1, v2);
 	}
 #endif
 
@@ -1919,6 +1968,11 @@
 	inline reg add<int8_t>(const reg v1, const reg v2) {
 		return _mm_castsi128_ps(_mm_adds_epi8(_mm_castps_si128(v1), _mm_castps_si128(v2)));
 	}
+
+	template <>
+	inline reg add<uint8_t>(const reg v1, const reg v2) {
+		return _mm_castsi128_ps(_mm_add_epi8(_mm_castps_si128(v1), _mm_castps_si128(v2)));
+	}
 #endif
 
 	// ------------------------------------------------------------------------------------------------------------ sub
@@ -2055,6 +2109,10 @@
 	template <>
 	inline reg max<int8_t>(const reg v1, const reg v2) {
 		return _mm_castsi128_ps(_mm_max_epi8(_mm_castps_si128(v1), _mm_castps_si128(v2)));
+	}
+	template <>
+	inline reg max<uint8_t>(const reg v1, const reg v2) {
+		return _mm_castsi128_ps(_mm_max_epu8(_mm_castps_si128(v1), _mm_castps_si128(v2)));
 	}
 #endif
 #endif

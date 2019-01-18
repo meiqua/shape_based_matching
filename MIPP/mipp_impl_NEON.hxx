@@ -39,6 +39,11 @@
 		return (reg) vld1q_s8((int8_t*) mem_addr);
 	}
 
+	template <>
+	inline reg loadu<uint8_t>(const uint8_t *mem_addr) {
+		return (reg) vld1q_u8((uint8_t*) mem_addr);
+	}
+
 	// ----------------------------------------------------------------------------------------------------------- load
 #ifdef MIPP_ALIGNED_LOADS
 #ifdef __aarch64__
@@ -74,6 +79,11 @@
 	inline reg load<int8_t>(const int8_t *mem_addr) {
 		return (reg) vld1q_s8((int8_t*) mem_addr);
 	}
+
+	template <>
+	inline reg load<uint8_t>(const uint8_t *mem_addr) {
+		return (reg) vld1q_u8((uint8_t*) mem_addr);
+	}
 #else
 	template <>
 	inline reg load<double>(const double *mem_addr) {
@@ -103,6 +113,11 @@
 	template <>
 	inline reg load<int8_t>(const int8_t *mem_addr) {
 		return mipp::loadu<int8_t>(mem_addr);
+	}
+
+	template <>
+	inline reg load<uint8_t>(const uint8_t *mem_addr) {
+		return mipp::loadu<uint8_t>(mem_addr);
 	}
 #endif
 
@@ -141,6 +156,10 @@
 		vst1q_s8((int8_t*) mem_addr, (int8x16_t) v);
 	}
 
+	template <>
+	inline void storeu<uint8_t>(uint8_t *mem_addr, const reg v) {
+		vst1q_u8((uint8_t*) mem_addr, (uint8x16_t) v);
+	}
 	// ---------------------------------------------------------------------------------------------------------- store
 #ifdef MIPP_ALIGNED_LOADS
 #ifdef __aarch64__
@@ -176,6 +195,11 @@
 	inline void store<int8_t>(int8_t *mem_addr, const reg v) {
 		vst1q_s8((int8_t*) mem_addr, (int8x16_t) v);
 	}
+
+	template <>
+	inline void store<uint8_t>(uint8_t *mem_addr, const reg v) {
+		vst1q_u8((uint8_t*) mem_addr, (uint8x16_t) v);
+	}
 #else
 	template <>
 	inline void store<double>(double *mem_addr, const reg v) {
@@ -205,6 +229,11 @@
 	template <>
 	inline void store<int8_t>(int8_t *mem_addr, const reg v) {
 		mipp::storeu<int8_t>(mem_addr, v);
+	}
+
+	template <>
+	inline void store<uint8_t>(uint8_t *mem_addr, const reg v) {
+		mipp::storeu<uint8_t>(mem_addr, v);
 	}
 #endif
 
@@ -313,6 +342,10 @@
 		return (reg) vdupq_n_s8(val);
 	}
 
+	template <>
+	inline reg set1<uint8_t>(const uint8_t val) {
+		return (reg) vdupq_n_u8(val);
+	}
 	// ---------------------------------------------------------------------------------------------------- set1 (mask)
 #ifdef __aarch64__
 		template <>
@@ -739,6 +772,11 @@
 		return (reg)vcombine_u8(low, high);
 	}
 
+	template <>
+	inline reg shuff<uint8_t>(const reg v, const reg cm) {
+		return shuff<int8_t>(v, cm);
+	}
+
 	// --------------------------------------------------------------------------------------------------------- shuff2
 	template <>
 	inline reg shuff2<double>(const reg v, const reg cm) {
@@ -832,6 +870,11 @@
 	inline reg interleavelo<int8_t>(const reg v1, const reg v2) {
 		uint8x8x2_t res = vzip_u8(vget_low_u8((uint8x16_t)v1), vget_low_u8((uint8x16_t)v2));
 		return (reg)vcombine_u8(res.val[0], res.val[1]);
+	}
+
+	template <>
+	inline reg interleavelo<uint8_t>(const reg v1, const reg v2) {
+		return interleavelo<int8_t>(v1, v2);
 	}
 
 	// --------------------------------------------------------------------------------------------------- interleavehi
@@ -1263,6 +1306,11 @@
 	template <>
 	inline reg orb<int8_t>(const reg v1, const reg v2) {
 		return (reg) vorrq_u8((uint8x16_t) v1, (uint8x16_t) v2);
+	}
+
+	template <>
+	inline reg orb<uint8_t>(const reg v1, const reg v2) {
+		return orb<int8_t>(v1, v2);
 	}
 
 	// ----------------------------------------------------------------------------------------------------- orb (mask)
@@ -1746,6 +1794,11 @@
 		return (reg) vqaddq_s8((int8x16_t) v1, (int8x16_t)v2);
 	}
 
+	template <>
+	inline reg add<uint8_t>(const reg v1, const reg v2) {
+		return (reg) vqaddq_u8((uint8x16_t) v1, (uint8x16_t)v2);
+	}
+
 	// ------------------------------------------------------------------------------------------------------------ sub
 #ifdef __aarch64__
 	template <>
@@ -1884,6 +1937,11 @@
 	template <>
 	inline reg max<int8_t>(const reg v1, const reg v2) {
 		return (reg) vmaxq_s8((int8x16_t) v1, (int8x16_t) v2);
+	}
+
+	template <>
+	inline reg max<uint8_t>(const reg v1, const reg v2) {
+		return (reg) vmaxq_u8((uint8x16_t) v1, (uint8x16_t) v2);
 	}
 
 	// ----------------------------------------------------------------------------------------------------------- msb

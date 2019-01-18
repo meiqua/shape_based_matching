@@ -551,12 +551,12 @@ static void orUnaligned8u(const uchar *src, const int src_stride,
 
         // avoid out of bound when can't divid
         // note: can't use c<width !!!
-        for (; c <= width-mipp::N<int8_t>(); c+=mipp::N<int8_t>()){
-            mipp::Reg<int8_t> src_v((int8_t*)src + c);
-            mipp::Reg<int8_t> dst_v((int8_t*)dst + c);
+        for (; c <= width-mipp::N<uint8_t>(); c+=mipp::N<uint8_t>()){
+            mipp::Reg<uint8_t> src_v((uint8_t*)src + c);
+            mipp::Reg<uint8_t> dst_v((uint8_t*)dst + c);
 
-            mipp::Reg<int8_t> res_v = mipp::orb(src_v, dst_v);
-            res_v.store((int8_t*)dst + c);
+            mipp::Reg<uint8_t> res_v = mipp::orb(src_v, dst_v);
+            res_v.store((uint8_t*)dst + c);
         }
 
         for(; c<width; c++)
@@ -636,58 +636,58 @@ static void computeResponseMaps(const Mat &src, std::vector<Mat> &response_maps)
             uchar *map_data = response_maps[ori].ptr<uchar>();
             const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
 
-            if(mipp::N<int8_t>() == 1 || no_max || no_shuff){ // no SIMD
+            if(mipp::N<uint8_t>() == 1 || no_max || no_shuff){ // no SIMD
                 for (int i = 0; i < src.rows * src.cols; ++i)
                     map_data[i] = std::max(lut_low[lsb4_data[i]], lut_low[msb4_data[i] + 16]);
             }
-            else if(mipp::N<int8_t>() == 16){ // 128 SIMD, no add base
+            else if(mipp::N<uint8_t>() == 16){ // 128 SIMD, no add base
 
                 const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
-                mipp::Reg<int8_t> lut_low_v((int8_t*)lut_low);
-                mipp::Reg<int8_t> lut_high_v((int8_t*)lut_low + 16);
+                mipp::Reg<uint8_t> lut_low_v((uint8_t*)lut_low);
+                mipp::Reg<uint8_t> lut_high_v((uint8_t*)lut_low + 16);
 
-                for (int i = 0; i < src.rows * src.cols; i += mipp::N<int8_t>()){
-                    mipp::Reg<int8_t> low_mask((int8_t*)lsb4_data + i);
-                    mipp::Reg<int8_t> high_mask((int8_t*)msb4_data + i);
+                for (int i = 0; i < src.rows * src.cols; i += mipp::N<uint8_t>()){
+                    mipp::Reg<uint8_t> low_mask((uint8_t*)lsb4_data + i);
+                    mipp::Reg<uint8_t> high_mask((uint8_t*)msb4_data + i);
 
-                    mipp::Reg<int8_t> low_res = mipp::shuff(lut_low_v, low_mask);
-                    mipp::Reg<int8_t> high_res = mipp::shuff(lut_high_v, high_mask);
+                    mipp::Reg<uint8_t> low_res = mipp::shuff(lut_low_v, low_mask);
+                    mipp::Reg<uint8_t> high_res = mipp::shuff(lut_high_v, high_mask);
 
-                    mipp::Reg<int8_t> result = mipp::max(low_res, high_res);
-                    result.store((int8_t*)map_data + i);
+                    mipp::Reg<uint8_t> result = mipp::max(low_res, high_res);
+                    result.store((uint8_t*)map_data + i);
                 }
             }
-            else if(mipp::N<int8_t>() == 16 || mipp::N<int8_t>() == 32
-                    || mipp::N<int8_t>() == 64){ //128 256 512 SIMD
-                CV_Assert((src.rows * src.cols) % mipp::N<int8_t>() == 0);
+            else if(mipp::N<uint8_t>() == 16 || mipp::N<uint8_t>() == 32
+                    || mipp::N<uint8_t>() == 64){ //128 256 512 SIMD
+                CV_Assert((src.rows * src.cols) % mipp::N<uint8_t>() == 0);
 
-                int8_t lut_temp[mipp::N<int8_t>()] = {0};
+                uint8_t lut_temp[mipp::N<uint8_t>()] = {0};
 
-                for(int slice=0; slice<mipp::N<int8_t>()/16; slice++){
+                for(int slice=0; slice<mipp::N<uint8_t>()/16; slice++){
                     std::copy_n(lut_low, 16, lut_temp+slice*16);
                 }
-                mipp::Reg<int8_t> lut_low_v(lut_temp);
+                mipp::Reg<uint8_t> lut_low_v(lut_temp);
 
-                int8_t base_add_array[mipp::N<int8_t>()] = {0};
-                for(int8_t slice=0; slice<mipp::N<int8_t>(); slice+=16){
+                uint8_t base_add_array[mipp::N<uint8_t>()] = {0};
+                for(uint8_t slice=0; slice<mipp::N<uint8_t>(); slice+=16){
                     std::copy_n(lut_low+16, 16, lut_temp+slice);
                     std::fill_n(base_add_array+slice, 16, slice);
                 }
-                mipp::Reg<int8_t> base_add(base_add_array);
-                mipp::Reg<int8_t> lut_high_v(lut_temp);
+                mipp::Reg<uint8_t> base_add(base_add_array);
+                mipp::Reg<uint8_t> lut_high_v(lut_temp);
 
-                for (int i = 0; i < src.rows * src.cols; i += mipp::N<int8_t>()){
-                    mipp::Reg<int8_t> mask_low_v((int8_t*)lsb4_data+i);
-                    mipp::Reg<int8_t> mask_high_v((int8_t*)msb4_data+i);
+                for (int i = 0; i < src.rows * src.cols; i += mipp::N<uint8_t>()){
+                    mipp::Reg<uint8_t> mask_low_v((uint8_t*)lsb4_data+i);
+                    mipp::Reg<uint8_t> mask_high_v((uint8_t*)msb4_data+i);
 
                     mask_low_v += base_add;
                     mask_high_v += base_add;
 
-                    mipp::Reg<int8_t> shuff_low_result = mipp::shuff(lut_low_v, mask_low_v);
-                    mipp::Reg<int8_t> shuff_high_result = mipp::shuff(lut_high_v, mask_high_v);
+                    mipp::Reg<uint8_t> shuff_low_result = mipp::shuff(lut_low_v, mask_low_v);
+                    mipp::Reg<uint8_t> shuff_high_result = mipp::shuff(lut_high_v, mask_high_v);
 
-                    mipp::Reg<int8_t> result = mipp::max(shuff_low_result, shuff_high_result);
-                    result.store((int8_t*)map_data + i);
+                    mipp::Reg<uint8_t> result = mipp::max(shuff_low_result, shuff_high_result);
+                    result.store((uint8_t*)map_data + i);
                 }
             }
             else{
@@ -780,7 +780,7 @@ static void similarity(const std::vector<Mat> &linear_memories, const Template &
 
     dst = Mat::zeros(H, W, CV_16U);
     short *dst_ptr = dst.ptr<short>();
-    mipp::Reg<int8_t> zero_v = int8_t(0);
+    mipp::Reg<uint8_t> zero_v(uint8_t(0));
 
     for (int i = 0; i < (int)templ.features.size(); ++i)
     {
@@ -795,7 +795,7 @@ static void similarity(const std::vector<Mat> &linear_memories, const Template &
 
         // *2 to avoid int8 read out of range
         for(; j <= template_positions -mipp::N<int16_t>()*2; j+=mipp::N<int16_t>()){
-            mipp::Reg<int8_t> src8_v((int8_t*)lm_ptr + j);
+            mipp::Reg<uint8_t> src8_v((uint8_t*)lm_ptr + j);
 
             // uchar to short, once for N bytes
             mipp::Reg<int16_t> src16_v(mipp::interleavelo(src8_v, zero_v).r);
@@ -821,7 +821,7 @@ static void similarityLocal(const std::vector<Mat> &linear_memories, const Templ
 
     int offset_x = (center.x / T - 8) * T;
     int offset_y = (center.y / T - 8) * T;
-    mipp::Reg<int8_t> zero_v = int8_t(0);
+    mipp::Reg<uint8_t> zero_v = uint8_t(0);
 
     for (int i = 0; i < (int)templ.features.size(); ++i)
     {
@@ -836,17 +836,17 @@ static void similarityLocal(const std::vector<Mat> &linear_memories, const Templ
         {
             short *dst_ptr = dst.ptr<short>();
 
-            if(mipp::N<int8_t>() > 32){ //512 bits SIMD
+            if(mipp::N<uint8_t>() > 32){ //512 bits SIMD
                 for (int row = 0; row < 16; row += mipp::N<int16_t>()/16){
                     mipp::Reg<int16_t> dst_v((int16_t*)dst_ptr + row*16);
 
                     // load lm_ptr, 16 bytes once, for half
-                    int8_t local_v[mipp::N<int8_t>()] = {0};
-                    for(int slice=0; slice<mipp::N<int8_t>()/16/2; slice++){
+                    uint8_t local_v[mipp::N<uint8_t>()] = {0};
+                    for(int slice=0; slice<mipp::N<uint8_t>()/16/2; slice++){
                         std::copy_n(lm_ptr, 16, &local_v[16*slice]);
                         lm_ptr += W;
                     }
-                    mipp::Reg<int8_t> src8_v(local_v);
+                    mipp::Reg<uint8_t> src8_v(local_v);
                     // uchar to short, once for N bytes
                     mipp::Reg<int16_t> src16_v(mipp::interleavelo(src8_v, zero_v).r);
 
@@ -858,7 +858,7 @@ static void similarityLocal(const std::vector<Mat> &linear_memories, const Templ
             }else{ // 256 128 or no SIMD
                 for (int row = 0; row < 16; ++row){
                     for(int col=0; col<16; col+=mipp::N<int16_t>()){
-                        mipp::Reg<int8_t> src8_v((int8_t*)lm_ptr + col);
+                        mipp::Reg<uint8_t> src8_v((uint8_t*)lm_ptr + col);
 
                         // uchar to short, once for N bytes
                         mipp::Reg<int16_t> src16_v(mipp::interleavelo(src8_v, zero_v).r);
@@ -882,7 +882,7 @@ static void similarity_64(const std::vector<Mat> &linear_memories, const Templat
     // 255/4 = 63, so up to that many we can add up similarities in 8 bits without worrying
     // about overflow. Therefore here we use _mm_add_epi8 as the workhorse, whereas a more
     // general function would use _mm_add_epi16.
-    CV_Assert(templ.features.size() < 32);
+    CV_Assert(templ.features.size() < 64);
     /// @todo Handle more than 255/MAX_RESPONSE features!!
 
     // Decimate input image size by factor of T
@@ -924,12 +924,12 @@ static void similarity_64(const std::vector<Mat> &linear_memories, const Templat
         // Now we do an aligned/unaligned add of dst_ptr and lm_ptr with template_positions elements
         int j = 0;
 
-        for(; j <= template_positions -mipp::N<int8_t>(); j+=mipp::N<int8_t>()){
-            mipp::Reg<int8_t> src_v((int8_t*)lm_ptr + j);
-            mipp::Reg<int8_t> dst_v((int8_t*)dst_ptr + j);
+        for(; j <= template_positions -mipp::N<uint8_t>(); j+=mipp::N<uint8_t>()){
+            mipp::Reg<uint8_t> src_v((uint8_t*)lm_ptr + j);
+            mipp::Reg<uint8_t> dst_v((uint8_t*)dst_ptr + j);
 
-            mipp::Reg<int8_t> res_v = src_v + dst_v;
-            res_v.store((int8_t*)dst_ptr + j);
+            mipp::Reg<uint8_t> res_v = src_v + dst_v;
+            res_v.store((uint8_t*)dst_ptr + j);
         }
 
         for(; j<template_positions; j++)
@@ -942,7 +942,7 @@ static void similarityLocal_64(const std::vector<Mat> &linear_memories, const Te
 {
     // Similar to whole-image similarity() above. This version takes a position 'center'
     // and computes the energy in the 16x16 patch centered on it.
-    CV_Assert(templ.features.size() < 32);
+    CV_Assert(templ.features.size() < 64);
 
     // Compute the similarity map in a 16x16 patch around center
     int W = size.width / T;
@@ -968,30 +968,30 @@ static void similarityLocal_64(const std::vector<Mat> &linear_memories, const Te
         {
             uchar *dst_ptr = dst.ptr<uchar>();
 
-            if(mipp::N<int8_t>() > 16){ // 256 or 512 bits SIMD
-                for (int row = 0; row < 16; row += mipp::N<int8_t>()/16){
-                    mipp::Reg<int8_t> dst_v((int8_t*)dst_ptr);
+            if(mipp::N<uint8_t>() > 16){ // 256 or 512 bits SIMD
+                for (int row = 0; row < 16; row += mipp::N<uint8_t>()/16){
+                    mipp::Reg<uint8_t> dst_v((uint8_t*)dst_ptr);
 
                     // load lm_ptr, 16 bytes once
-                    int8_t local_v[mipp::N<int8_t>()];
-                    for(int slice=0; slice<mipp::N<int8_t>()/16; slice++){
+                    uint8_t local_v[mipp::N<uint8_t>()];
+                    for(int slice=0; slice<mipp::N<uint8_t>()/16; slice++){
                         std::copy_n(lm_ptr, 16, &local_v[16*slice]);
                         lm_ptr += W;
                     }
-                    mipp::Reg<int8_t> src_v(local_v);
+                    mipp::Reg<uint8_t> src_v(local_v);
 
-                    mipp::Reg<int8_t> res_v = src_v + dst_v;
-                    res_v.store((int8_t*)dst_ptr);
+                    mipp::Reg<uint8_t> res_v = src_v + dst_v;
+                    res_v.store((uint8_t*)dst_ptr);
 
-                    dst_ptr += mipp::N<int8_t>();
+                    dst_ptr += mipp::N<uint8_t>();
                 }
             }else{ // 128 or no SIMD
                 for (int row = 0; row < 16; ++row){
-                    for(int col=0; col<16; col+=mipp::N<int8_t>()){
-                        mipp::Reg<int8_t> src_v((int8_t*)lm_ptr + col);
-                        mipp::Reg<int8_t> dst_v((int8_t*)dst_ptr + col);
-                        mipp::Reg<int8_t> res_v = src_v + dst_v;
-                        res_v.store((int8_t*)dst_ptr + col);
+                    for(int col=0; col<16; col+=mipp::N<uint8_t>()){
+                        mipp::Reg<uint8_t> src_v((uint8_t*)lm_ptr + col);
+                        mipp::Reg<uint8_t> dst_v((uint8_t*)dst_ptr + col);
+                        mipp::Reg<uint8_t> res_v = src_v + dst_v;
+                        res_v.store((uint8_t*)dst_ptr + col);
                     }
                     dst_ptr += 16;
                     lm_ptr += W;
@@ -1138,7 +1138,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                 const Template &templ = tp[lowest_start];
                 num_features += static_cast<int>(templ.features.size());
 
-                if (templ.features.size() < 32){
+                if (templ.features.size() < 64){
                     similarity_64(lowest_lm[0], templ, similarities, sizes.back(), lowest_T);
                     similarities.convertTo(similarities, CV_16U);
                 }else if (templ.features.size() < 8192){
@@ -1203,7 +1203,7 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
                     const Template &templ = tp[start];
                     numFeatures += static_cast<int>(templ.features.size());
 
-                    if (templ.features.size() < 32){
+                    if (templ.features.size() < 64){
                         similarityLocal_64(lms[0], templ, similarities2, size, T, Point(x, y));
                         similarities2.convertTo(similarities2, CV_16U);
                     }else if (templ.features.size() < 8192){

@@ -70,6 +70,12 @@
 	inline reg loadu<int8_t>(const int8_t *mem_addr) {
 		return _mm512_loadu_ps((const float*) mem_addr);
 	}
+
+	template <>
+	inline reg loadu<uint8_t>(const uint8_t *mem_addr) {
+		return _mm512_loadu_ps((const float*) mem_addr);
+	}
+
 #endif
 
 	// ----------------------------------------------------------------------------------------------------------- load
@@ -103,6 +109,12 @@
 	inline reg load<int8_t>(const int8_t *mem_addr) {
 		return _mm512_load_ps((const float*) mem_addr);
 	}
+
+	template <>
+	inline reg load<uint8_t>(const uint8_t *mem_addr) {
+		return _mm512_load_ps((const float*) mem_addr);
+	}
+
 #else
 	template <>
 	inline reg load<float>(const float *mem_addr) {
@@ -133,6 +145,12 @@
 	inline reg load<int8_t>(const int8_t *mem_addr) {
 		return mipp::loadu<int8_t>(mem_addr);
 	}
+
+	template <>
+	inline reg load<uint8_t>(const uint8_t *mem_addr) {
+		return mipp::loadu<uint8_t>(mem_addr);
+	}
+
 #endif
 
 	// --------------------------------------------------------------------------------------------------------- storeu
@@ -164,6 +182,11 @@
 
 	template <>
 	inline void storeu<int8_t>(int8_t *mem_addr, const reg v) {
+		_mm512_storeu_ps((float *)mem_addr, v);
+	}
+
+	template <>
+	inline void storeu<uint8_t>(uint8_t *mem_addr, const reg v) {
 		_mm512_storeu_ps((float *)mem_addr, v);
 	}
 #endif
@@ -199,6 +222,11 @@
 	inline void store<int8_t>(int8_t *mem_addr, const reg v) {
 		_mm512_store_ps((float *)mem_addr, v);
 	}
+
+	template <>
+	inline void store<uint8_t>(uint8_t *mem_addr, const reg v) {
+		_mm512_store_ps((float *)mem_addr, v);
+	}
 #else
 	template <>
 	inline void store<float>(float *mem_addr, const reg v) {
@@ -228,6 +256,11 @@
 	template <>
 	inline void store<int8_t>(int8_t *mem_addr, const reg v) {
 		mipp::storeu<int8_t>(mem_addr, v);
+	}
+
+	template <>
+	inline void store<uint8_t>(uint8_t *mem_addr, const reg v) {
+		mipp::storeu<uint8_t>(mem_addr, v);
 	}
 #endif
 
@@ -296,6 +329,11 @@
 	template <>
 	inline reg set1<int8_t>(const int8_t val) {
 		return _mm512_castsi512_ps(_mm512_set1_epi8(val));
+	}
+
+	template <>
+	inline reg set1<uint8_t>(const uint8_t val) {
+		return _mm512_castsi512_ps(_mm512_set1_epi8(reinterpret_cast<const int8_t&>(val));
 	}
 
 #elif defined(__MIC__) || defined(__KNCNI__)
@@ -1056,6 +1094,10 @@
 	inline reg shuff<int8_t>(const reg v, const reg cm) {
 		return _mm512_castsi512_ps(_mm512_permutexvar_epi8(_mm512_castps_si512(v), _mm512_castps_si512(cm)));
 	}
+	template <>
+	inline reg shuff<uint8_t>(const reg v, const reg cm) {
+		return shuff<int8_t>(v, cm);
+	}
 #endif
 
 	// --------------------------------------------------------------------------------------------------------- shuff2
@@ -1526,6 +1568,11 @@
 		                                1,  0);
 		return _mm512_castpd_ps(_mm512_permutex2var_pd(_mm512_castps_pd(lo4), idxlo, _mm512_castps_pd(hi4)));
 	}
+
+	template <>
+	inline reg interleavelo<uint8_t>(const reg v1, const reg v2) {
+		return interleavelo<int8_t>(v1, v2);
+	}
 #endif
 
 	// --------------------------------------------------------------------------------------------------- interleavehi
@@ -1962,6 +2009,11 @@
 	template <>
 	inline reg orb<int8_t>(const reg v1, const reg v2) {
 		return _mm512_castsi512_ps(_mm512_or_si512(_mm512_castps_si512(v1), _mm512_castps_si512(v2)));
+	}
+
+	template <>
+	inline reg orb<uint8_t>(const reg v1, const reg v2) {
+		return orb<int8_t>(v1, v2);
 	}
 
 	// ----------------------------------------------------------------------------------------------------- orb (mask)
@@ -2493,6 +2545,11 @@
 	}
 
 	template <>
+	inline reg add<uint8_t>(const reg v1, const reg v2) {
+		return _mm512_castsi512_ps(_mm512_add_epi8(_mm512_castps_si512(v1), _mm512_castps_si512(v2)));
+	}
+
+	template <>
 	inline reg mask<int8_t,add<int8_t>>(const msk m, const reg src, const reg v1, const reg v2) {
 		return _mm512_castsi512_ps(_mm512_mask_adds_epi8(_mm512_castps_si512(src), (__mmask64)m, _mm512_castps_si512(v1), _mm512_castps_si512(v2)));
 	}
@@ -2662,6 +2719,11 @@
 	template <>
 	inline reg max<int8_t>(const reg v1, const reg v2) {
 		return _mm512_castsi512_ps(_mm512_max_epi8(_mm512_castps_si512(v1), _mm512_castps_si512(v2)));
+	}
+
+	template <>
+	inline reg max<uint8_t>(const reg v1, const reg v2) {
+		return _mm512_castsi512_ps(_mm512_max_epu8(_mm512_castps_si512(v1), _mm512_castps_si512(v2)));
 	}
 #endif
 

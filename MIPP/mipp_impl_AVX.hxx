@@ -35,6 +35,11 @@
 		return _mm256_loadu_ps((const float*) mem_addr);
 	}
 
+	template <>
+	inline reg loadu<uint8_t>(const uint8_t *mem_addr) {
+		return _mm256_loadu_ps((const float*) mem_addr);
+	}
+
 	// ----------------------------------------------------------------------------------------------------------- load
 #ifdef MIPP_ALIGNED_LOADS
 	template <>
@@ -66,6 +71,12 @@
 	inline reg load<int8_t>(const int8_t *mem_addr) {
 		return _mm256_load_ps((const float*) mem_addr);
 	}
+
+	template <>
+	inline reg load<uint8_t>(const uint8_t *mem_addr) {
+		return _mm256_load_ps((const float*) mem_addr);
+	}
+
 #else
 	template <>
 	inline reg load<float>(const float *mem_addr) {
@@ -96,6 +107,12 @@
 	inline reg load<int8_t>(const int8_t *mem_addr) {
 		return mipp::loadu<int8_t>(mem_addr);
 	}
+
+	template <>
+	inline reg load<uint8_t>(const uint8_t *mem_addr) {
+		return mipp::loadu<uint8_t>(mem_addr);
+	}
+
 #endif
 
 	// --------------------------------------------------------------------------------------------------------- storeu
@@ -126,6 +143,11 @@
 
 	template <>
 	inline void storeu<int8_t>(int8_t *mem_addr, const reg v) {
+		_mm256_storeu_ps((float *)mem_addr, v);
+	}
+	
+	template <>
+	inline void storeu<uint8_t>(uint8_t *mem_addr, const reg v) {
 		_mm256_storeu_ps((float *)mem_addr, v);
 	}
 
@@ -160,6 +182,11 @@
 	inline void store<int8_t>(int8_t *mem_addr, const reg v) {
 		_mm256_store_ps((float *)mem_addr, v);
 	}
+
+	template <>
+	inline void store<uint8_t>(uint8_t *mem_addr, const reg v) {
+		_mm256_store_ps((float *)mem_addr, v);
+	}
 #else
 	template <>
 	inline void store<float>(float *mem_addr, const reg v) {
@@ -189,6 +216,11 @@
 	template <>
 	inline void store<int8_t>(int8_t *mem_addr, const reg v) {
 		mipp::storeu<int8_t>(mem_addr, v);
+	}
+
+	template <>
+	inline void store<uint8_t>(uint8_t *mem_addr, const reg v) {
+		mipp::storeu<uint8_t>(mem_addr, v);
 	}
 #endif
 
@@ -305,6 +337,11 @@
 	template <>
 	inline reg set1<int8_t>(const int8_t val) {
 		return _mm256_castsi256_ps(_mm256_set1_epi8(val));
+	}
+
+	template <>
+	inline reg set1<uint8_t>(const uint8_t val) {
+		return _mm256_castsi256_ps(_mm256_set1_epi8(reinterpret_cast<const int8_t&>(val)));
 	}
 #endif
 
@@ -816,6 +853,17 @@
 		return mipp::loadu<int8_t>(out);
 	}
 
+	template <>
+	inline reg shuff<uint8_t>(const reg v, const reg cm) {
+		constexpr int N = mipp::N<uint8_t>();
+
+		uint8_t out[N];
+		for (auto i = 0; i < N; i++)
+			out[i] = *((uint8_t*)&v + (*((uint8_t*)&cm +i)));
+
+		return mipp::loadu<uint8_t>(out);
+	}
+
 	// --------------------------------------------------------------------------------------------------------- shuff2
 #ifdef __AVX2__
 	template <>
@@ -1107,6 +1155,10 @@
 		return rx2.val[0];
 	}
 
+	template <>
+	inline reg interleavelo<uint8_t>(const reg v1, const reg v2) {
+        return interleavelo<int8_t>(v1, v2);
+	}
 	// --------------------------------------------------------------------------------------------------- interleavehi
 	template <>
 	inline reg interleavehi<double>(const reg v1, const reg v2) {
@@ -1583,6 +1635,11 @@
 	inline reg orb<int8_t>(const reg v1, const reg v2) {
 		return _mm256_castsi256_ps(_mm256_or_si256(_mm256_castps_si256(v1), _mm256_castps_si256(v2)));
 	}
+
+	template <>
+	inline reg orb<uint8_t>(const reg v1, const reg v2) {
+		return orb<int8_t>(v1, v2);
+	}
 #endif
 
 	// ----------------------------------------------------------------------------------------------------- orb (mask)
@@ -2035,6 +2092,11 @@
 	inline reg add<int8_t>(const reg v1, const reg v2) {
 		return _mm256_castsi256_ps(_mm256_adds_epi8(_mm256_castps_si256(v1), _mm256_castps_si256(v2)));
 	}
+
+	template <>
+	inline reg add<uint8_t>(const reg v1, const reg v2) {
+		return _mm256_castsi256_ps(_mm256_add_epi8(_mm256_castps_si256(v1), _mm256_castps_si256(v2)));
+	}
 #endif
 
 	// ------------------------------------------------------------------------------------------------------------ sub
@@ -2158,6 +2220,11 @@
 	template <>
 	inline reg max<int8_t>(const reg v1, const reg v2) {
 		return _mm256_castsi256_ps(_mm256_max_epi8(_mm256_castps_si256(v1), _mm256_castps_si256(v2)));
+	}
+
+	template <>
+	inline reg max<uint8_t>(const reg v1, const reg v2) {
+		return _mm256_castsi256_ps(_mm256_max_epu8(_mm256_castps_si256(v1), _mm256_castps_si256(v2)));
 	}
 #endif
 
