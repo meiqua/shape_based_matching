@@ -494,9 +494,9 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
 }
 
 ColorGradient::ColorGradient()
-    : weak_threshold(10.0f),
+    : weak_threshold(30.0f),
       num_features(63),
-      strong_threshold(55.0f)
+      strong_threshold(60.0f)
 {
 }
 
@@ -1009,7 +1009,7 @@ Detector::Detector()
 {
     this->modality = makePtr<ColorGradient>();
     pyramid_levels = 2;
-    T_at_level.push_back(5);
+    T_at_level.push_back(4);
     T_at_level.push_back(8);
 }
 
@@ -1020,9 +1020,9 @@ Detector::Detector(std::vector<int> T)
     T_at_level = T;
 }
 
-Detector::Detector(int num_features, std::vector<int> T)
+Detector::Detector(int num_features, std::vector<int> T, float weak_thresh, float strong_threash)
 {
-    this->modality = makePtr<ColorGradient>(10.0f, num_features, 55.0f);
+    this->modality = makePtr<ColorGradient>(weak_thresh, num_features, strong_threash);
     pyramid_levels = T.size();
     T_at_level = T;
 }

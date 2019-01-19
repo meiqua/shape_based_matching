@@ -139,6 +139,7 @@ void scale_test(){
     mode = "test";
     if(mode == "train"){
         Mat img = cv::imread(prefix+"case0/templ/circle.png");
+        assert(!img.empty() && "check your img path");
         shape_based_matching::shapeInfo shapes(img);
 
         shapes.scale_range = {0.1f, 1};
@@ -165,7 +166,7 @@ void scale_test(){
         detector.writeClasses(prefix+"case0/%s_templ.yaml");
 
         // save infos, in this simple case infos are not used
-        shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "circle_info.yaml");
+        shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "case0/circle_info.yaml");
         std::cout << "train end" << std::endl << std::endl;
 
     }else if(mode=="test"){
@@ -175,7 +176,8 @@ void scale_test(){
         ids.push_back("circle");
         detector.readClasses(ids, prefix+"case0/%s_templ.yaml");
 
-        Mat test_img = imread(prefix+"case0/3.png");
+        Mat test_img = imread(prefix+"case0/1.jpg");
+        assert(!test_img.empty() && "check your img path");
 
         // make the img having 32*n width & height
         int stride = 32;
@@ -243,9 +245,10 @@ void angle_test(){
 
     string mode = "train";
     mode = "test";
-//    mode = "none";
     if(mode == "train"){
         Mat img = imread(prefix+"case1/train.png");
+        assert(!img.empty() && "check your img path");
+
         Rect roi(130, 110, 270, 270);
         img = img(roi).clone();
         Mat mask = Mat(img.size(), CV_8UC1, {255});
@@ -284,6 +287,7 @@ void angle_test(){
         detector.readClasses(ids, prefix+"case1/%s_templ.yaml");
 
         Mat test_img = imread(prefix+"case1/test.png");
+        assert(!test_img.empty() && "check your img path");
 
         int padding = 500;
         cv::Mat padded_img = cv::Mat(test_img.rows + 2*padding,
@@ -348,9 +352,9 @@ void noise_test(){
 
     string mode = "train";
     mode = "test";
-//    mode = "none";
     if(mode == "train"){
         Mat img = imread(prefix+"case2/train.png");
+        assert(!img.empty() && "check your img path");
         Mat mask = Mat(img.size(), CV_8UC1, {255});
 
         shape_based_matching::shapeInfo shapes(img, mask);
@@ -379,6 +383,9 @@ void noise_test(){
         detector.readClasses(ids, prefix+"case2/%s_templ.yaml");
 
         Mat test_img = imread(prefix+"case2/test.png");
+        assert(!test_img.empty() && "check your img path");
+
+//        cvtColor(test_img, test_img, CV_BGR2GRAY);
 
         int stride = 16;
         int n = test_img.rows/stride;
@@ -388,7 +395,7 @@ void noise_test(){
         test_img = test_img(roi).clone();
 
         Timer timer;
-        auto matches = detector.match(test_img, 90, ids);
+        auto matches = detector.match(test_img, 80, ids);
         timer.out();
 
         std::cout << "matches.size(): " << matches.size() << std::endl;
@@ -469,11 +476,45 @@ void MIPP_test(){
     std::cout << "----------" << std::endl << std::endl;
 }
 
+void view_angle(){
+    float weak_thresh = 30.0f;
+
+    // default params for detector
+    line2Dup::Detector detector(63, {4, 8}, weak_thresh, 60.0f);
+    // last two: magnitude thresh to extract angle in test image;
+    //magnitude thresh to extract template points in train image;
+
+    Mat img = cv::imread(prefix+"case0/templ/circle.png");
+    assert(!img.empty() && "check your img path");
+    imshow("img", img);
+    cv::Mat gray;
+    cv::cvtColor(img, gray, CV_BGR2GRAY);
+
+    GaussianBlur(gray, gray, {5, 5}, 0);
+
+    Mat grad1,grad2,angle;
+    Sobel(gray, grad1, CV_32FC1, 1, 0);
+    Sobel(gray, grad2, CV_32FC1, 0, 1);
+    phase(grad1, grad2, angle, true);
+    for(int r=0; r<angle.rows; r++){
+        for(int c=0; c<angle.cols; c++){
+            if(angle.at<float>(r, c) > 180)
+            angle.at<float>(r, c) -= 180;
+        }
+    }
+    angle.convertTo(angle,CV_8UC1);
+    Mat grad_mask = (grad1.mul(grad1) + grad2.mul(grad2)) > weak_thresh*weak_thresh;
+    Mat angle_masked;
+    angle.copyTo(angle_masked, grad_mask);
+    imshow("mask", grad_mask);
+    imshow("angle", angle_masked);
+    // angle masked is what we use for shape based matching
+    cv::waitKey(0);
+}
+
 int main(){
 
     MIPP_test();
-//    scale_test();
-    angle_test();
-//    noise_test();
+    noise_test();
     return 0;
 }
