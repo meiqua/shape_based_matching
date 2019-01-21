@@ -208,6 +208,7 @@ void scale_test(){
             // nums: num_pyramids * num_modality (modality, depth or RGB, always 1 here)
             // template[0]: highest pyrimad(more pixels)
             // template[0].width: actual width of the matched template
+            // template[0].tl_x / tl_y: topleft corner when cropping templ during training
             // In this case, we can regard width/2 = radius
             int x =  templ[0].width/2 + match.x;
             int y = templ[0].height/2 + match.y;
@@ -217,20 +218,6 @@ void scale_test(){
             cv::putText(img, to_string(int(round(match.similarity))),
                         Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, color);
             cv::circle(img, {x, y}, r, color, 2);
-
-            //show templates or not
-//            int cols = templ[0].width + 1;
-//            int rows = templ[0].height+ 1;
-//            cv::Mat view = cv::Mat(rows, cols, CV_8UC1, cv::Scalar(0));
-//            for(int i=0; i<templ[0].features.size(); i++){
-//                auto feat = templ[0].features[i];
-//                assert(feat.y<rows);
-//                assert(feat.x<cols);
-//                view.at<uchar>(feat.y, feat.x) = 255;
-//            }
-//            view = view>0;
-//            imshow("test", view);
-//            waitKey(0);
         }
 
         imshow("img", img);
@@ -241,7 +228,7 @@ void scale_test(){
 }
 
 void angle_test(){
-    line2Dup::Detector detector(120, {4, 8});
+    line2Dup::Detector detector(128, {4, 8});
 
     string mode = "train";
     mode = "test";
@@ -319,9 +306,12 @@ void angle_test(){
             auto templ = detector.getTemplates("test",
                                                match.template_id);
 
-            int x =  templ[0].width/2 + match.x;
-            int y = templ[0].height/2 + match.y;
-            int r = templ[0].width/2;
+            // 270 is width of template image
+            // 100 is padding when training
+            // tl_x/y: template croping topleft corner when training
+            float x =  match.x - templ[0].tl_x + 270/2.0f + 100;
+            float y =  match.y - templ[0].tl_y + 270/2.0f + 100;
+            float r =  270/2.0f;
             cv::Vec3b randColor;
             randColor[0] = rand()%155 + 100;
             randColor[1] = rand()%155 + 100;
@@ -334,7 +324,15 @@ void angle_test(){
 
             cv::putText(img, to_string(int(round(match.similarity))),
                         Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, randColor);
-            cv::circle(img, {x, y}, r, randColor, 2);
+
+            // template id is angle here
+            cv::RotatedRect rotatedRectangle({x, y}, {2*r, 2*r}, -match.template_id);
+            cv::Point2f vertices[4];
+            rotatedRectangle.points(vertices);
+            for(int i=0; i<4; i++){
+                int next = (i+1==4) ? 0 : (i+1);
+                cv::line(img, vertices[i], vertices[next], randColor, 2);
+            }
 
             std::cout << "\nmatch.template_id: " << match.template_id << std::endl;
             std::cout << "match.similarity: " << match.similarity << std::endl;
@@ -385,7 +383,7 @@ void noise_test(){
         Mat test_img = imread(prefix+"case2/test.png");
         assert(!test_img.empty() && "check your img path");
 
-//        cvtColor(test_img, test_img, CV_BGR2GRAY);
+        // cvtColor(test_img, test_img, CV_BGR2GRAY);
 
         int stride = 16;
         int n = test_img.rows/stride;
@@ -515,6 +513,6 @@ void view_angle(){
 int main(){
 
     MIPP_test();
-    noise_test();
+    angle_test();
     return 0;
 }
