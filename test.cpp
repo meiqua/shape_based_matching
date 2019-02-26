@@ -132,7 +132,7 @@ void scale_test(){
     int num_feature = 150;
 
     // feature numbers(how many ori in one templates?)
-    // two pyramids, higher pyramid(more pixels) in stride 4, lower in stride 8
+    // two pyramids, lower pyramid(more pixels) in stride 4, lower in stride 8
     line2Dup::Detector detector(num_feature, {4, 8});
 
     string mode = "train";
@@ -140,13 +140,13 @@ void scale_test(){
     if(mode == "train"){
         Mat img = cv::imread(prefix+"case0/templ/circle.png");
         assert(!img.empty() && "check your img path");
-        shape_based_matching::shapeInfo shapes(img);
+        shape_based_matching::shapeInfo_producer shapes(img);
 
         shapes.scale_range = {0.1f, 1};
         shapes.scale_step = 0.01f;
         shapes.produce_infos();
 
-        std::vector<shape_based_matching::shapeInfo::shape_and_info> infos_have_templ;
+        std::vector<shape_based_matching::shapeInfo_producer::shape_and_info> infos_have_templ;
         string class_id = "circle";
         for(auto& info: shapes.infos){
 
@@ -165,8 +165,9 @@ void scale_test(){
         // save templates
         detector.writeClasses(prefix+"case0/%s_templ.yaml");
 
-        // save infos, in this simple case infos are not used
-        shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "case0/circle_info.yaml");
+        // save infos, last bool is to save src or not, default false
+        // in this simple case infos are not used
+        shapes.save_infos(infos_have_templ, prefix + "case0/circle_info.yaml", false);
         std::cout << "train end" << std::endl << std::endl;
 
     }else if(mode=="test"){
@@ -180,6 +181,7 @@ void scale_test(){
         assert(!test_img.empty() && "check your img path");
 
         // make the img having 32*n width & height
+        // at least 16*n here for two pyrimads with strides 4 8
         int stride = 32;
         int n = test_img.rows/stride;
         int m = test_img.cols/stride;
@@ -206,7 +208,7 @@ void scale_test(){
                                                match.template_id);
             // template:
             // nums: num_pyramids * num_modality (modality, depth or RGB, always 1 here)
-            // template[0]: highest pyrimad(more pixels)
+            // template[0]: lowest pyrimad(more pixels)
             // template[0].width: actual width of the matched template
             // template[0].tl_x / tl_y: topleft corner when cropping templ during training
             // In this case, we can regard width/2 = radius
@@ -248,11 +250,11 @@ void angle_test(){
         cv::Mat padded_mask = cv::Mat(mask.rows + 2*padding, mask.cols + 2*padding, mask.type(), cv::Scalar::all(0));
         mask.copyTo(padded_mask(Rect(padding, padding, img.cols, img.rows)));
 
-        shape_based_matching::shapeInfo shapes(padded_img, padded_mask);
+        shape_based_matching::shapeInfo_producer shapes(padded_img, padded_mask);
         shapes.angle_range = {0, 360};
         shapes.angle_step = 1;
         shapes.produce_infos();
-        std::vector<shape_based_matching::shapeInfo::shape_and_info> infos_have_templ;
+        std::vector<shape_based_matching::shapeInfo_producer::shape_and_info> infos_have_templ;
         string class_id = "test";
         for(auto& info: shapes.infos){
             imshow("train", info.src);
@@ -266,12 +268,15 @@ void angle_test(){
             }
         }
         detector.writeClasses(prefix+"case1/%s_templ.yaml");
-        shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "case1/test_info.yaml");
+        shapes.save_infos(infos_have_templ, prefix + "case1/test_info.yaml");
         std::cout << "train end" << std::endl << std::endl;
     }else if(mode=="test"){
         std::vector<std::string> ids;
         ids.push_back("test");
         detector.readClasses(ids, prefix+"case1/%s_templ.yaml");
+
+        // angle & scale are saved here, fetched by match id
+        auto infos = shape_based_matching::shapeInfo_producer::load_infos(prefix + "case1/test_info.yaml");
 
         Mat test_img = imread(prefix+"case1/test.png");
         assert(!test_img.empty() && "check your img path");
@@ -325,8 +330,7 @@ void angle_test(){
             cv::putText(img, to_string(int(round(match.similarity))),
                         Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, randColor);
 
-            // template id is angle here
-            cv::RotatedRect rotatedRectangle({x, y}, {2*r, 2*r}, -match.template_id);
+            cv::RotatedRect rotatedRectangle({x, y}, {2*r, 2*r}, -infos[match.template_id].angle);
             cv::Point2f vertices[4];
             rotatedRectangle.points(vertices);
             for(int i=0; i<4; i++){
@@ -355,11 +359,11 @@ void noise_test(){
         assert(!img.empty() && "check your img path");
         Mat mask = Mat(img.size(), CV_8UC1, {255});
 
-        shape_based_matching::shapeInfo shapes(img, mask);
+        shape_based_matching::shapeInfo_producer shapes(img, mask);
         shapes.angle_range = {0, 360};
         shapes.angle_step = 1;
         shapes.produce_infos();
-        std::vector<shape_based_matching::shapeInfo::shape_and_info> infos_have_templ;
+        std::vector<shape_based_matching::shapeInfo_producer::shape_and_info> infos_have_templ;
         string class_id = "test";
         for(auto& info: shapes.infos){
             imshow("train", info.src);
@@ -373,7 +377,7 @@ void noise_test(){
             }
         }
         detector.writeClasses(prefix+"case2/%s_templ.yaml");
-        shapes.save_infos(infos_have_templ, shapes.src, shapes.mask, prefix + "case2/test_info.yaml");
+        shapes.save_infos(infos_have_templ, prefix + "case2/test_info.yaml");
         std::cout << "train end" << std::endl << std::endl;
     }else if(mode=="test"){
         std::vector<std::string> ids;
@@ -513,6 +517,6 @@ void view_angle(){
 int main(){
 
     MIPP_test();
-    angle_test();
+    noise_test();
     return 0;
 }
