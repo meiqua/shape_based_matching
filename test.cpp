@@ -146,7 +146,7 @@ void scale_test(){
         shapes.scale_step = 0.01f;
         shapes.produce_infos();
 
-        std::vector<shape_based_matching::shapeInfo_producer::shape_and_info> infos_have_templ;
+        std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
         string class_id = "circle";
         for(auto& info: shapes.infos){
 
@@ -165,9 +165,9 @@ void scale_test(){
         // save templates
         detector.writeClasses(prefix+"case0/%s_templ.yaml");
 
-        // save infos, last bool is to save src or not, default false
+        // save infos,
         // in this simple case infos are not used
-        shapes.save_infos(infos_have_templ, prefix + "case0/circle_info.yaml", false);
+        shapes.save_infos(infos_have_templ, prefix + "case0/circle_info.yaml");
         std::cout << "train end" << std::endl << std::endl;
 
     }else if(mode=="test"){
@@ -254,7 +254,7 @@ void angle_test(){
         shapes.angle_range = {0, 360};
         shapes.angle_step = 1;
         shapes.produce_infos();
-        std::vector<shape_based_matching::shapeInfo_producer::shape_and_info> infos_have_templ;
+        std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
         string class_id = "test";
         for(auto& info: shapes.infos){
             imshow("train", info.src);
@@ -331,6 +331,7 @@ void angle_test(){
                         Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, randColor);
 
             cv::RotatedRect rotatedRectangle({x, y}, {2*r, 2*r}, -infos[match.template_id].angle);
+
             cv::Point2f vertices[4];
             rotatedRectangle.points(vertices);
             for(int i=0; i<4; i++){
@@ -363,7 +364,7 @@ void noise_test(){
         shapes.angle_range = {0, 360};
         shapes.angle_step = 1;
         shapes.produce_infos();
-        std::vector<shape_based_matching::shapeInfo_producer::shape_and_info> infos_have_templ;
+        std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
         string class_id = "test";
         for(auto& info: shapes.infos){
             imshow("train", info.src);

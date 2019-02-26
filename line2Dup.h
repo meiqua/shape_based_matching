@@ -215,25 +215,25 @@ public:
     float scale_step = 0.5;
     float eps = 0.00001f;
 
-    class shape_and_info{
+    class Info{
     public:
         cv::Mat src;
         cv::Mat mask;
         float angle;
         float scale;
-        shape_and_info(cv::Mat src_, cv::Mat mask_, float angle_, float scale_){
+        Info(cv::Mat src_, cv::Mat mask_, float angle_, float scale_){
             src = src_;
             mask = mask_;
             angle = angle_;
             scale = scale_;
         }
 
-        shape_and_info(float angle_, float scale_){
+        Info(float angle_, float scale_){
             angle = angle_;
             scale = scale_;
         }
     };
-    std::vector<shape_and_info> infos;
+    std::vector<Info> infos;
 
     shapeInfo_producer(cv::Mat src, cv::Mat mask = cv::Mat()){
         this->src = src;
@@ -254,48 +254,30 @@ public:
 
         return dst;
     }
-    static void save_infos(std::vector<shapeInfo_producer::shape_and_info>& infos, std::string path = "infos.yaml",
-                           bool save_src = false){
+    static void save_infos(std::vector<shapeInfo_producer::Info>& infos, std::string path = "infos.yaml"){
         cv::FileStorage fs(path, cv::FileStorage::WRITE);
-
-        fs << "save_src" << save_src;
 
         fs << "infos"
            << "[";
         for (int i = 0; i < infos.size(); i++)
         {
             fs << "{";
-
-            if(save_src){
-                fs << "src" << infos[i].src;
-                fs << "mask" << infos[i].mask;
-            }
             fs << "angle" << infos[i].angle;
             fs << "scale" << infos[i].scale;
             fs << "}";
         }
         fs << "]";
     }
-    static std::vector<shape_and_info> load_infos(std::string path = "info.yaml"){
+    static std::vector<Info> load_infos(std::string path = "info.yaml"){
         cv::FileStorage fs(path, cv::FileStorage::READ);
 
-        std::vector<shape_and_info> infos;
-
-        bool save_src;
-        fs["save_src"] >> save_src;
+        std::vector<Info> infos;
 
         cv::FileNode infos_fn = fs["infos"];
         cv::FileNodeIterator it = infos_fn.begin(), it_end = infos_fn.end();
         for (int i = 0; it != it_end; ++it, i++)
         {
-            if(save_src){
-                cv::Mat src, mask;
-                (*it)["src"] >> src;
-                (*it)["mask"] >> mask;
-                infos.emplace_back(src, mask, float((*it)["angle"]), float((*it)["scale"]));
-            }else{
-                infos.emplace_back(float((*it)["angle"]), float((*it)["scale"]));
-            }
+            infos.emplace_back(float((*it)["angle"]), float((*it)["scale"]));
         }
         return infos;
     }
