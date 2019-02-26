@@ -517,6 +517,6 @@ void view_angle(){
 int main(){
 
     MIPP_test();
-    noise_test();
+    angle_test();
     return 0;
 }
