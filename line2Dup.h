@@ -217,16 +217,8 @@ public:
 
     class Info{
     public:
-        cv::Mat src;
-        cv::Mat mask;
         float angle;
         float scale;
-        Info(cv::Mat src_, cv::Mat mask_, float angle_, float scale_){
-            src = src_;
-            mask = mask_;
-            angle = angle_;
-            scale = scale_;
-        }
 
         Info(float angle_, float scale_){
             angle = angle_;
@@ -299,41 +291,37 @@ public:
         if(angle_range.size() == 1 && scale_range.size() == 1){
             float angle = angle_range[0];
             float scale = scale_range[0];
-            cv::Mat src_transformed = transform(src, angle, scale);
-            cv::Mat mask_transformed = transform(mask, angle, scale);
-            mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
-            infos.emplace_back(src_transformed, mask_transformed, angle, scale);
+            infos.emplace_back(angle, scale);
 
         }else if(angle_range.size() == 1 && scale_range.size() == 2){
             assert(scale_range[1] > scale_range[0]);
             float angle = angle_range[0];
             for(float scale = scale_range[0]; scale <= scale_range[1]+eps; scale += scale_step){
-                cv::Mat src_transformed = transform(src, angle, scale);
-                cv::Mat mask_transformed = transform(mask, angle, scale);
-                mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
-                infos.emplace_back(src_transformed, mask_transformed, angle, scale);
+                infos.emplace_back(angle, scale);
             }
         }else if(angle_range.size() == 2 && scale_range.size() == 1){
             assert(angle_range[1] > angle_range[0]);
             float scale = scale_range[0];
             for(float angle = angle_range[0]; angle <= angle_range[1]+eps; angle += angle_step){
-                cv::Mat src_transformed = transform(src, angle, scale);
-                cv::Mat mask_transformed = transform(mask, angle, scale);
-                mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
-                infos.emplace_back(src_transformed, mask_transformed, angle, scale);
+                infos.emplace_back(angle, scale);
             }
         }else if(angle_range.size() == 2 && scale_range.size() == 2){
             assert(scale_range[1] > scale_range[0]);
             assert(angle_range[1] > angle_range[0]);
             for(float scale = scale_range[0]; scale <= scale_range[1]+eps; scale += scale_step){
                 for(float angle = angle_range[0]; angle <= angle_range[1]+eps; angle += angle_step){
-                    cv::Mat src_transformed = transform(src, angle, scale);
-                    cv::Mat mask_transformed = transform(mask, angle, scale);
-                    mask_transformed = mask_transformed > 0; //make sure it's a mask after transform
-                    infos.emplace_back(src_transformed, mask_transformed, angle, scale);
+                    infos.emplace_back(angle, scale);
                 }
             }
         }
+    }
+
+    cv::Mat src_of(const Info& info){
+        return transform(src, info.angle, info.scale);
+    }
+
+    cv::Mat mask_of(const Info& info){
+        return (transform(mask, info.angle, info.scale) > 0);
     }
 };
 

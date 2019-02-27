@@ -128,15 +128,14 @@ void circle_gen(){
     waitKey(0);
 }
 
-void scale_test(){
+void scale_test(string mode = "train"){
     int num_feature = 150;
 
     // feature numbers(how many ori in one templates?)
     // two pyramids, lower pyramid(more pixels) in stride 4, lower in stride 8
     line2Dup::Detector detector(num_feature, {4, 8});
 
-    string mode = "train";
-    mode = "test";
+//    mode = "test";
     if(mode == "train"){
         Mat img = cv::imread(prefix+"case0/templ/circle.png");
         assert(!img.empty() && "check your img path");
@@ -152,7 +151,7 @@ void scale_test(){
 
             // template img, id, mask,
             //feature numbers(missing it means using the detector initial num)
-            int templ_id = detector.addTemplate(info.src, class_id, info.mask,
+            int templ_id = detector.addTemplate(shapes.src_of(info), class_id, shapes.mask_of(info),
                                                 int(num_feature*info.scale));
             std::cout << "templ_id: " << templ_id << std::endl;
 
@@ -229,10 +228,9 @@ void scale_test(){
     }
 }
 
-void angle_test(){
+void angle_test(string mode = "train"){
     line2Dup::Detector detector(128, {4, 8});
 
-    string mode = "train";
 //    mode = "test";
     if(mode == "train"){
         Mat img = imread(prefix+"case1/train.png");
@@ -257,11 +255,11 @@ void angle_test(){
         std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
         string class_id = "test";
         for(auto& info: shapes.infos){
-            imshow("train", info.src);
+            imshow("train", shapes.src_of(info));
             waitKey(1);
 
             std::cout << "\ninfo.angle: " << info.angle << std::endl;
-            int templ_id = detector.addTemplate(info.src, class_id, info.mask);
+            int templ_id = detector.addTemplate(shapes.src_of(info), class_id, shapes.mask_of(info));
             std::cout << "templ_id: " << templ_id << std::endl;
             if(templ_id != -1){
                 infos_have_templ.push_back(info);
@@ -357,11 +355,10 @@ void angle_test(){
     }
 }
 
-void noise_test(){
+void noise_test(string mode = "train"){
     line2Dup::Detector detector(30, {4, 8});
 
-    string mode = "train";
-    mode = "test";
+//    mode = "test";
     if(mode == "train"){
         Mat img = imread(prefix+"case2/train.png");
         assert(!img.empty() && "check your img path");
@@ -374,11 +371,11 @@ void noise_test(){
         std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
         string class_id = "test";
         for(auto& info: shapes.infos){
-            imshow("train", info.src);
+            imshow("train", shapes.src_of(info));
             waitKey(1);
 
             std::cout << "\ninfo.angle: " << info.angle << std::endl;
-            int templ_id = detector.addTemplate(info.src, class_id, info.mask);
+            int templ_id = detector.addTemplate(shapes.src_of(info), class_id, shapes.mask_of(info));
             std::cout << "templ_id: " << templ_id << std::endl;
             if(templ_id != -1){
                 infos_have_templ.push_back(info);
