@@ -233,7 +233,7 @@ void angle_test(){
     line2Dup::Detector detector(128, {4, 8});
 
     string mode = "train";
-    mode = "test";
+//    mode = "test";
     if(mode == "train"){
         Mat img = imread(prefix+"case1/train.png");
         assert(!img.empty() && "check your img path");
@@ -316,13 +316,19 @@ void angle_test(){
             // tl_x/y: template croping topleft corner when training
 
             float r_scaled = 270/2.0f*infos[match.template_id].scale;
-            float x =  match.x - templ[0].tl_x + r_scaled + 100;
-            float y =  match.y - templ[0].tl_y + r_scaled + 100;
+
+            // scaling won't affect this, because it has been determined by warpAffine
+            // cv::warpAffine(src, dst, rot_mat, src.size()); last param
+            float train_img_half_width = 270/2.0f + 100;
+
+            // center x,y of train_img in test img
+            float x =  match.x - templ[0].tl_x + train_img_half_width;
+            float y =  match.y - templ[0].tl_y + train_img_half_width;
+
             cv::Vec3b randColor;
             randColor[0] = rand()%155 + 100;
             randColor[1] = rand()%155 + 100;
             randColor[2] = rand()%155 + 100;
-
             for(int i=0; i<templ[0].features.size(); i++){
                 auto feat = templ[0].features[i];
                 cv::circle(img, {feat.x+match.x, feat.y+match.y}, 3, randColor, -1);
