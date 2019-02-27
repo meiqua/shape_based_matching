@@ -314,9 +314,10 @@ void angle_test(){
             // 270 is width of template image
             // 100 is padding when training
             // tl_x/y: template croping topleft corner when training
-            float x =  match.x - templ[0].tl_x + 270/2.0f + 100;
-            float y =  match.y - templ[0].tl_y + 270/2.0f + 100;
-            float r =  270/2.0f;
+
+            float r_scaled = 270/2.0f*infos[match.template_id].scale;
+            float x =  match.x - templ[0].tl_x + r_scaled + 100;
+            float y =  match.y - templ[0].tl_y + r_scaled + 100;
             cv::Vec3b randColor;
             randColor[0] = rand()%155 + 100;
             randColor[1] = rand()%155 + 100;
@@ -328,10 +329,9 @@ void angle_test(){
             }
 
             cv::putText(img, to_string(int(round(match.similarity))),
-                        Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, randColor);
+                        Point(match.x+r_scaled-10, match.y-3), FONT_HERSHEY_PLAIN, 2, randColor);
 
-            float r_scaled = 2*r*infos[match.template_id].scale;
-            cv::RotatedRect rotatedRectangle({x, y}, {r_scaled, r_scaled}, -infos[match.template_id].angle);
+            cv::RotatedRect rotatedRectangle({x, y}, {2*r_scaled, 2*r_scaled}, -infos[match.template_id].angle);
 
             cv::Point2f vertices[4];
             rotatedRectangle.points(vertices);
