@@ -330,7 +330,8 @@ void angle_test(){
             cv::putText(img, to_string(int(round(match.similarity))),
                         Point(match.x+r-10, match.y-3), FONT_HERSHEY_PLAIN, 2, randColor);
 
-            cv::RotatedRect rotatedRectangle({x, y}, {2*r, 2*r}, -infos[match.template_id].angle);
+            float r_scaled = 2*r*infos[match.template_id].scale;
+            cv::RotatedRect rotatedRectangle({x, y}, {r_scaled, r_scaled}, -infos[match.template_id].angle);
 
             cv::Point2f vertices[4];
             rotatedRectangle.points(vertices);
