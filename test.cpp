@@ -128,7 +128,7 @@ void circle_gen(){
     waitKey(0);
 }
 
-void scale_test(string mode = "train"){
+void scale_test(string mode = "test"){
     int num_feature = 150;
 
     // feature numbers(how many ori in one templates?)
@@ -228,7 +228,7 @@ void scale_test(string mode = "train"){
     }
 }
 
-void angle_test(string mode = "train"){
+void angle_test(string mode = "test"){
     line2Dup::Detector detector(128, {4, 8});
 
 //    mode = "test";
@@ -355,7 +355,7 @@ void angle_test(string mode = "train"){
     }
 }
 
-void noise_test(string mode = "train"){
+void noise_test(string mode = "test"){
     line2Dup::Detector detector(30, {4, 8});
 
 //    mode = "test";
@@ -522,6 +522,6 @@ void view_angle(){
 int main(){
 
     MIPP_test();
-    angle_test();
+    angle_test("test"); // test or train
     return 0;
 }
