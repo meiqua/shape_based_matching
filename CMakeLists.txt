@@ -36,7 +36,18 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 include_directories (${INCLUDE_DIRECTORIES} "${CMAKE_CURRENT_SOURCE_DIR}/MIPP/")
 
 
+# icp for refine
+option(USE_CUDA "use cuda or not" OFF)
+
+if(USE_CUDA)
+set(CUDA_TOOLKIT_ROOT_DIR /usr/local/cuda-10.0)
+add_definitions(-DCUDA_ON)
+endif()
+
+add_subdirectory(cuda_icp)
+
+
 # test exe
 add_executable(${PROJECT_NAME}_test line2Dup.cpp test.cpp)
-target_link_libraries(${PROJECT_NAME}_test ${OpenCV_LIBS})
+target_link_libraries(${PROJECT_NAME}_test ${OpenCV_LIBS} cuda_icp)
 
