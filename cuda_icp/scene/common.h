@@ -35,4 +35,6 @@ public:
     void __malloc(size_t size);
     void __free();
 };
+
+extern template class device_vector_holder<Vec2f>;
 #endif
