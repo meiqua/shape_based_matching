@@ -50,10 +50,17 @@ RegistrationResult ICP2D_Point2Plane_cpu(std::vector<Vec2f>& model_pcd,
         const Scene scene,
         const ICPConvergenceCriteria criteria = ICPConvergenceCriteria());
 
+extern template RegistrationResult ICP2D_Point2Plane_cpu(std::vector<Vec2f> &model_pcd, const Scene_edge scene,
+const ICPConvergenceCriteria criteria);
+
 #ifdef CUDA_ON
 template<class Scene>
 RegistrationResult ICP2D_Point2Plane_cuda(device_vector_holder<Vec2f> &model_pcd, const Scene scene,
                                         const ICPConvergenceCriteria criteria = ICPConvergenceCriteria());
+
+extern template RegistrationResult ICP2D_Point2Plane_cuda(device_vector_holder<Vec2f> &model_pcd, const Scene_edge scene,
+const ICPConvergenceCriteria criteria);
+
 #endif
 
 

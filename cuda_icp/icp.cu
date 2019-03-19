@@ -85,7 +85,7 @@ RegistrationResult ICP2D_Point2Plane_cuda(device_vector_holder<Vec2f> &model_pcd
     return result;
 }
 
-RegistrationResult ICP2D_Point2Plane_cuda(device_vector_holder<Vec2f> &model_pcd, const Scene_edge scene,
+template RegistrationResult ICP2D_Point2Plane_cuda(device_vector_holder<Vec2f> &model_pcd, const Scene_edge scene,
                                         const ICPConvergenceCriteria criteria);
 }
 
