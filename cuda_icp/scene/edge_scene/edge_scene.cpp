@@ -401,12 +401,7 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
     pcd_buffer.clear();
     pcd_buffer.resize(img.rows * img.cols, ::Vec2f(-1, -1)); // -1 indicate no edge around
 
-
-    cv::Mat sobel_dx, sobel_dy, magnitude, sobel_ag;
-    cv::Sobel(blur, sobel_dx, CV_32F, 1, 0, 3, 1.0, 0.0, cv::BORDER_REPLICATE);
-    cv::Sobel(blur, sobel_dy, CV_32F, 0, 1, 3, 1.0, 0.0, cv::BORDER_REPLICATE);
-    phase(sobel_dx, sobel_dy, sobel_ag, false);
-
+    std::vector<::Vec2f> pcd_buffer_sub = pcd_buffer;
 
     for(int r=0; r<img.rows; r++){
         for(int c=0; c<img.cols; c++){
@@ -442,17 +437,11 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
                     y += (float)py;
                 }
 
-                float theta = sobel_ag.at<float>(r, c);
-                float test_nx = cos(theta);
-                float test_ny = -sin(theta);
-
-                normal_buffer[c + r*img.cols] = {float(test_nx), float(test_ny)};
-                pcd_buffer[c +r*img.cols] = {float(c), float(r)};
+                normal_buffer[c + r*img.cols] = {float(nx), float(-ny)};
+                pcd_buffer_sub[c +r*img.cols] = {x, y};
             }
         }
     }
-
-
     // get pcd, dilute to neibor
     {
         // may padding to divid and parallel
@@ -462,17 +451,14 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
             for(int c=0+kernel_size; c<img.cols - kernel_size; c++){
 
                 if(edge.at<uchar>(r, c) > 0){
-
-                    auto pcd = pcd_buffer[c +r*img.cols];
-
+                    auto pcd = pcd_buffer_sub[c + r*img.cols];
                     for(int i=-kernel_size; i<=kernel_size; i++){
                         for(int j=-kernel_size; j<=kernel_size; j++){
-                            if(i==0 && j==0) continue; // already set pcd
 
-                            float dist_sq = pow2(i-(pcd.y-r))*pow2(j-(pcd.x-c));
-
+                            float dist_sq = pow2(i) + pow2(j);
+//                            float dist_sq = pow2(j-(pcd.x-c)) + pow2(i-(pcd.y-r));  // this is better?
                             // don't go too far
-                            if(dist_sq > max_dist_diff*max_dist_diff) continue;
+                            if(dist_sq > pow2(max_dist_diff)) continue;
 
                             int new_r = r + i;
                             int new_c = c + j;
