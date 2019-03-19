@@ -172,7 +172,7 @@ void angle_test(string mode = "test", bool viewICP = false){
         // angle & scale are saved here, fetched by match id
         auto infos = shape_based_matching::shapeInfo_producer::load_infos(prefix + "case1/test_info.yaml");
 
-        Mat test_img = imread(prefix+"case1/test.png");
+        Mat test_img = imread(prefix+"case1/train.png");
         assert(!test_img.empty() && "check your img path");
 
         int padding = 100;
@@ -290,9 +290,9 @@ void angle_test(string mode = "test", bool viewICP = false){
             double init_angle = infos[match.template_id].angle;
             init_angle = init_angle >= 180 ? (init_angle-360) : init_angle;
 
-            double ori_diff_angle = std::abs(init_angle + 20);
+            double ori_diff_angle = std::abs(init_angle);
             double icp_diff_angle = std::abs(-std::asin(result.transformation_[1][0])/CV_PI*180 +
-                    init_angle + 20);
+                    init_angle);
             double improved_angle = ori_diff_angle - icp_diff_angle;
 
             std::cout << "\n---------------" << std::endl;

@@ -437,7 +437,7 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
                     y += (float)py;
                 }
 
-                normal_buffer[c + r*img.cols] = {float(-nx), float(ny)};
+                normal_buffer[c + r*img.cols] = {float(nx), float(-ny)};
                 pcd_buffer_sub[c +r*img.cols] = {x, y};
             }
         }
