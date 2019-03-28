@@ -30,7 +30,17 @@ struct Scene_edge{
 
     __device__ __host__
     void query(const Vec2f& src_pcd, Vec2f& dst_pcd, Vec2f& dst_normal, bool& valid) const {
-        size_t idx = size_t(src_pcd.x + 0.5f) + size_t(src_pcd.y + 0.5f) * width;
+
+        size_t x,y;
+        x = size_t(src_pcd.x + 0.5f);
+        y = size_t(src_pcd.y + 0.5f);
+
+        if(x >= width || y >= height){
+            valid = false;
+            return;
+        }
+
+        size_t idx = x + y * width;
         if(pcd_ptr[idx].x >= 0){
 
             dst_pcd = pcd_ptr[idx];
