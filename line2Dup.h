@@ -240,7 +240,7 @@ public:
     static cv::Mat transform(cv::Mat src, float angle, float scale){
         cv::Mat dst;
 
-        cv::Point center(src.cols/2, src.rows/2);
+        cv::Point2f center(src.cols/2.0f, src.rows/2.0f);
         cv::Mat rot_mat = cv::getRotationMatrix2D(center, angle, scale);
         cv::warpAffine(src, dst, rot_mat, src.size());
 
