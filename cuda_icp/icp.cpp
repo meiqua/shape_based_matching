@@ -5,10 +5,16 @@
 
 namespace cuda_icp{
 
-Eigen::Matrix3d TransformVector3dToMatrix3d(const Eigen::Matrix<double, 3, 1> &input) {
+Eigen::Matrix3d TransformVector4dToMatrix3d(const Eigen::Matrix<double, 4, 1> &input) {
+
+    // rotate
     Eigen::Matrix3d output =
-            (Eigen::AngleAxisd(input(0), Eigen::Vector3d::UnitZ()))
-                    .matrix();
+            (Eigen::AngleAxisd(input(0), Eigen::Vector3d::UnitZ())).matrix();
+
+    // scale
+    output.block<2, 2>(0, 0) *= (1 + input[3]);
+
+    // translate
     output.block<2, 1>(0, 2) = input.block<2, 1>(1, 0);
     return output;
 }
@@ -23,12 +29,12 @@ Mat3x3f eigen_to_custom(const Eigen::Matrix3f& extrinsic){
     return result;
 }
 
-Mat3x3f eigen_slover_333(float *A, float *b)
+Mat3x3f eigen_slover_444(float *A, float *b)
 {
-    Eigen::Matrix<float, 3, 3> A_eigen(A);
-    Eigen::Matrix<float, 3, 1> b_eigen(b);
-    const Eigen::Matrix<double, 3, 1> update = A_eigen.cast<double>().ldlt().solve(b_eigen.cast<double>());
-    Eigen::Matrix3d extrinsic = TransformVector3dToMatrix3d(update);
+    Eigen::Matrix<float, 4, 4> A_eigen(A);
+    Eigen::Matrix<float, 4, 1> b_eigen(b);
+    const Eigen::Matrix<double, 4, 1> update = A_eigen.cast<double>().ldlt().solve(b_eigen.cast<double>());
+    Eigen::Matrix3d extrinsic = TransformVector4dToMatrix3d(update);
     return eigen_to_custom(extrinsic.cast<float>());
 }
 
@@ -51,30 +57,30 @@ RegistrationResult ICP2D_Point2Plane_cpu(std::vector<Vec2f> &model_pcd, const Sc
     RegistrationResult result;
     RegistrationResult backup;
 
-    std::vector<float> A_host(9, 0);
-    std::vector<float> b_host(3, 0);
+    std::vector<float> A_host(16, 0);
+    std::vector<float> b_host(4, 0);
     thrust__pcd2Ab<Scene> trasnformer(scene);
 
     // use one extra turn
     for(uint32_t iter=0; iter<=criteria.max_iteration_; iter++){
 
-        Vec11f reducer;
+        Vec16f reducer;
 
-#pragma omp declare reduction( + : Vec11f : omp_out += omp_in) \
-                       initializer (omp_priv = Vec11f::Zero())
+#pragma omp declare reduction( + : Vec16f : omp_out += omp_in) \
+                       initializer (omp_priv = Vec16f::Zero())
 
 #pragma omp parallel for reduction(+: reducer)
         for(size_t pcd_iter=0; pcd_iter<model_pcd.size(); pcd_iter++){
-            Vec11f result = trasnformer(model_pcd[pcd_iter]);
+            Vec16f result = trasnformer(model_pcd[pcd_iter]);
             reducer += result;
         }
 
-        Vec11f& Ab_tight = reducer;
+        Vec16f& Ab_tight = reducer;
 
         backup = result;
 
-        float& count = Ab_tight[10];
-        float& total_error = Ab_tight[9];
+        float& count = Ab_tight[15];
+        float& total_error = Ab_tight[14];
         if(count == 0) return result;  // avoid divid 0
 
         result.fitness_ = float(count) / model_pcd.size();
@@ -88,18 +94,18 @@ RegistrationResult ICP2D_Point2Plane_cpu(std::vector<Vec2f> &model_pcd, const Sc
             return result;
         }
 
-        for(int i=0; i<3; i++) b_host[i] = Ab_tight[6 + i];
+        for(int i=0; i<4; i++) b_host[i] = Ab_tight[10 + i];
 
         int shift = 0;
-        for(int y=0; y<3; y++){
-            for(int x=y; x<3; x++){
-                A_host[x + y*3] = Ab_tight[shift];
-                A_host[y + x*3] = Ab_tight[shift];
+        for(int y=0; y<4; y++){
+            for(int x=y; x<4; x++){
+                A_host[x + y*4] = Ab_tight[shift];
+                A_host[y + x*4] = Ab_tight[shift];
                 shift++;
             }
         }
 
-        Mat3x3f extrinsic = eigen_slover_333(A_host.data(), b_host.data());
+        Mat3x3f extrinsic = eigen_slover_444(A_host.data(), b_host.data());
 
         transform_pcd(model_pcd, extrinsic);
         result.transformation_ = extrinsic * result.transformation_;

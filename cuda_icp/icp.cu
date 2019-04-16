@@ -3,6 +3,7 @@
 #include <thrust/functional.h>
 
 namespace cuda_icp{
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
@@ -12,7 +13,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
       if (abort) exit(code);
    }
 }
-
 
 __global__ void transform_pcd_cuda(Vec2f* model_pcd_ptr, uint32_t model_pcd_size, Mat3x3f trans){
     uint32_t i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -25,15 +25,14 @@ __global__ void transform_pcd_cuda(Vec2f* model_pcd_ptr, uint32_t model_pcd_size
     pcd.y = new_y;
 }
 
-
 template<class Scene>
 RegistrationResult ICP2D_Point2Plane_cuda(device_vector_holder<Vec2f> &model_pcd, const Scene scene,
                                         const ICPConvergenceCriteria criteria){
     RegistrationResult result;
     RegistrationResult backup;
 
-    thrust::host_vector<float> A_host(9, 0);
-    thrust::host_vector<float> b_host(3, 0);
+    thrust::host_vector<float> A_host(16, 0);
+    thrust::host_vector<float> b_host(4, 0);
 
     const uint32_t threadsPerBlock = 256;
     const uint32_t numBlocks = (model_pcd.size() + threadsPerBlock - 1)/threadsPerBlock;
@@ -47,8 +46,8 @@ RegistrationResult ICP2D_Point2Plane_cuda(device_vector_holder<Vec2f> &model_pcd
         cudaStreamSynchronize(cudaStreamPerThread);
         backup = result;
 
-        float& count = Ab_tight[10];
-        float& total_error = Ab_tight[9];
+        float& count = Ab_tight[15];
+        float& total_error = Ab_tight[14];
         if(count == 0) return result;  // avoid divid 0
 
         result.fitness_ = float(count) / model_pcd.size();
@@ -62,18 +61,18 @@ RegistrationResult ICP2D_Point2Plane_cuda(device_vector_holder<Vec2f> &model_pcd
             return result;
         }
 
-        for(int i=0; i<3; i++) b_host[i] = Ab_tight[6 + i];
+        for(int i=0; i<4; i++) b_host[i] = Ab_tight[10 + i];
 
         int shift = 0;
-        for(int y=0; y<3; y++){
-            for(int x=y; x<3; x++){
-                A_host[x + y*3] = Ab_tight[shift];
-                A_host[y + x*3] = Ab_tight[shift];
+        for(int y=0; y<4; y++){
+            for(int x=y; x<4; x++){
+                A_host[x + y*4] = Ab_tight[shift];
+                A_host[y + x*4] = Ab_tight[shift];
                 shift++;
             }
         }
 
-        Mat3x3f extrinsic = eigen_slover_333(A_host.data(), b_host.data());
+        Mat3x3f extrinsic = eigen_slover_444(A_host.data(), b_host.data());
 
         transform_pcd_cuda<<<numBlocks, threadsPerBlock>>>(model_pcd.data(), model_pcd.size(), extrinsic);
         cudaStreamSynchronize(cudaStreamPerThread);
