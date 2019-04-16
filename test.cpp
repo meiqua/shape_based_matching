@@ -147,6 +147,9 @@ void angle_test(string mode = "test", bool viewICP = false){
         shape_based_matching::shapeInfo_producer shapes(padded_img, padded_mask);
         shapes.angle_range = {0, 360};
         shapes.angle_step = 1;
+        shapes.scale_range = {0.97f, 1.1f};
+        shapes.scale_step = 100.0f;// one scale, 0.97
+
         shapes.produce_infos();
         std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
         string class_id = "test";
@@ -291,11 +294,12 @@ void angle_test(string mode = "test", bool viewICP = false){
             init_angle = init_angle >= 180 ? (init_angle-360) : init_angle;
 
             double ori_diff_angle = std::abs(init_angle);
-            double icp_diff_angle = std::abs(-std::asin(result.transformation_[1][0])/CV_PI*180 +
+            double icp_diff_angle = std::abs(-std::asin(result.transformation_[1][0]/result.transformation_[0][0])/CV_PI*180 +
                     init_angle);
             double improved_angle = ori_diff_angle - icp_diff_angle;
 
             std::cout << "\n---------------" << std::endl;
+            std::cout << "scale: " << result.transformation_[0][0] << std::endl;
             std::cout << "init diff angle: " << ori_diff_angle << std::endl;
             std::cout << "improved angle: " << improved_angle << std::endl;
             std::cout << "match.template_id: " << match.template_id << std::endl;
