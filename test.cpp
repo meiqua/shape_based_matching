@@ -294,12 +294,13 @@ void angle_test(string mode = "test", bool viewICP = false){
             init_angle = init_angle >= 180 ? (init_angle-360) : init_angle;
 
             double ori_diff_angle = std::abs(init_angle);
-            double icp_diff_angle = std::abs(-std::asin(result.transformation_[1][0]/result.transformation_[0][0])/CV_PI*180 +
+            double icp_diff_angle = std::abs(-std::atan(result.transformation_[1][0]/result.transformation_[0][0])/CV_PI*180 +
                     init_angle);
             double improved_angle = ori_diff_angle - icp_diff_angle;
 
             std::cout << "\n---------------" << std::endl;
-            std::cout << "scale: " << result.transformation_[0][0] << std::endl;
+            std::cout << "scale: " << std::sqrt(result.transformation_[0][0]*result.transformation_[0][0] +
+                    result.transformation_[1][0]*result.transformation_[1][0]) << std::endl;
             std::cout << "init diff angle: " << ori_diff_angle << std::endl;
             std::cout << "improved angle: " << improved_angle << std::endl;
             std::cout << "match.template_id: " << match.template_id << std::endl;
