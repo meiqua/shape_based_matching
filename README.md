@@ -90,3 +90,11 @@ test img & templ features
 ### noise test  
 
 ![test2](test/case2/result/together.png)  
+
+## some issues You may want to know  
+Well, issues are not clearly classified and many questions are discussed in one issue sometimes. For better reference, some typical discussions are pasted here.  
+
+[object too small?](https://github.com/meiqua/shape_based_matching/issues/13#issuecomment-474780205)  
+[failure case?](https://github.com/meiqua/shape_based_matching/issues/19#issuecomment-481153907)  
+[how to run even faster?](https://github.com/meiqua/shape_based_matching/issues/21#issuecomment-489664586)  
+
