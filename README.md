@@ -91,7 +91,7 @@ test img & templ features
 
 ![test2](test/case2/result/together.png)  
 
-## some issues You may want to know  
+## some issues you may want to know  
 Well, issues are not clearly classified and many questions are discussed in one issue sometimes. For better reference, some typical discussions are pasted here.  
 
 [object too small?](https://github.com/meiqua/shape_based_matching/issues/13#issuecomment-474780205)  
