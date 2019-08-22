@@ -191,7 +191,7 @@ bool ColorGradientPyramid::selectScatteredFeatures(const std::vector<Candidate> 
             i = 0;
             distance -= 1.0f;
             distance_sq = distance * distance;
-             if (num_ok){
+             if (num_ok || distance < 3){
                  break;
              }
         }
