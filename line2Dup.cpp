@@ -155,7 +155,10 @@ bool ColorGradientPyramid::selectScatteredFeatures(const std::vector<Candidate> 
     features.clear();
     float distance_sq = distance * distance;
     int i = 0;
-    while (features.size() < num_features)
+
+    bool first_select = true;
+
+    while(true)
     {
         Candidate c = candidates[i];
 
@@ -169,27 +172,38 @@ bool ColorGradientPyramid::selectScatteredFeatures(const std::vector<Candidate> 
         if (keep)
             features.push_back(c.f);
 
-        if (++i == (int)candidates.size())
-        {
+        if (++i == (int)candidates.size()){
+            bool num_ok = features.size() >= num_features;
+
+            if(first_select){
+                if(num_ok){
+                    features.clear(); // we don't want too many first time
+                    i = 0;
+                    distance += 1.0f;
+                    distance_sq = distance * distance;
+                    continue;
+                }else{
+                    first_select = false;
+                }
+            }
+
             // Start back at beginning, and relax required distance
             i = 0;
             distance -= 1.0f;
             distance_sq = distance * distance;
-            // if (distance < 3)
-            // {
-            //     // we don't want two features too close
-            //     break;
-            // }
+             if (num_ok){
+                 break;
+             }
         }
     }
-    if (features.size() == num_features)
+    if (features.size() >= num_features)
     {
         return true;
     }
     else
     {
-        std::cout << "this templ has no enough features" << std::endl;
-        return false;
+        std::cout << "this templ has no enough features, but we let it go" << std::endl;
+        return true;
     }
 }
 
