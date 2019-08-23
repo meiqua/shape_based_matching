@@ -292,7 +292,7 @@ void hysteresisGradient(Mat &magnitude, Mat &quantized_angle,
 }
 
 static void quantizedOrientations(const Mat &src, Mat &magnitude,
-                                  Mat &angle, float threshold)
+                                  Mat &angle, Mat& angle_ori, float threshold)
 {
     Mat smoothed;
     // Compute horizontal and vertical image derivatives on all color channels separately
@@ -377,6 +377,7 @@ static void quantizedOrientations(const Mat &src, Mat &magnitude,
         // Calculate the final gradient orientations
         phase(sobel_dx, sobel_dy, sobel_ag, true);
         hysteresisGradient(magnitude, angle, sobel_ag, threshold * threshold);
+        angle_ori = sobel_ag;
     }
 
 
@@ -397,7 +398,7 @@ ColorGradientPyramid::ColorGradientPyramid(const Mat &_src, const Mat &_mask,
 
 void ColorGradientPyramid::update()
 {
-    quantizedOrientations(src, magnitude, angle, weak_threshold);
+    quantizedOrientations(src, magnitude, angle, angle_ori, weak_threshold);
 }
 
 void ColorGradientPyramid::pyrDown()
@@ -482,6 +483,7 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
                 if (score > threshold_sq && angle.at<uchar>(r, c) > 0)
                 {
                     candidates.push_back(Candidate(c, r, getLabel(angle.at<uchar>(r, c)), score));
+                    candidates.back().f.theta = angle_ori.at<float>(r, c);
                 }
             }
         }
@@ -1294,6 +1296,64 @@ int Detector::addTemplate(const Mat source, const std::string &class_id,
     cropTemplates(tp);
 
     /// @todo Can probably avoid a copy of tp here with swap
+    template_pyramids.push_back(tp);
+    return template_id;
+}
+
+static cv::Point2f rotate2d(const cv::Point2f inPoint, const double angRad)
+{
+    cv::Point2f outPoint;
+    //CW rotation
+    outPoint.x = std::cos(angRad)*inPoint.x - std::sin(angRad)*inPoint.y;
+    outPoint.y = std::sin(angRad)*inPoint.x + std::cos(angRad)*inPoint.y;
+    return outPoint;
+}
+
+static cv::Point2f rotatePoint(const cv::Point2f inPoint, const cv::Point2f center, const double angRad)
+{
+    return rotate2d(inPoint - center, angRad) + center;
+}
+
+int Detector::addTemplate_rotate(const string &class_id, int zero_id,
+                                 float theta, cv::Point2f center)
+{
+    std::vector<TemplatePyramid> &template_pyramids = class_templates[class_id];
+    int template_id = static_cast<int>(template_pyramids.size());
+
+    const auto& to_rotate_tp = template_pyramids[zero_id];
+
+    TemplatePyramid tp;
+    tp.resize(pyramid_levels);
+
+    for (int l = 0; l < pyramid_levels; ++l)
+    {
+        if(l>0) center /= 2;
+
+        for(auto& f: to_rotate_tp[l].features){
+            Point2f p;
+            p.x = f.x + to_rotate_tp[l].tl_x;
+            p.y = f.y + to_rotate_tp[l].tl_y;
+            Point2f p_rot = rotatePoint(p, center, -theta/180*CV_PI);
+
+            Feature f_new;
+            f_new.x = int(p_rot.x + 0.5f);
+            f_new.y = int(p_rot.y + 0.5f);
+
+            f_new.theta = f.theta - theta;
+            while(f_new.theta > 360) f_new.theta -= 360;
+            while(f_new.theta < 0) f_new.theta += 360;
+
+            f_new.label = int(f_new.theta * 16 / 360 + 0.5f);
+            f_new.label &= 7;
+
+
+            tp[l].features.push_back(f_new);
+        }
+        tp[l].pyramid_level = l;
+    }
+
+    cropTemplates(tp);
+
     template_pyramids.push_back(tp);
     return template_id;
 }
