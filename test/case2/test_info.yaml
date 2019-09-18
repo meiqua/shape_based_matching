@@ -548,9 +548,6 @@ infos:
       angle: 181.
       scale: 1.
    -
-      angle: 182.
-      scale: 1.
-   -
       angle: 183.
       scale: 1.
    -
@@ -818,16 +815,7 @@ infos:
       angle: 271.
       scale: 1.
    -
-      angle: 272.
-      scale: 1.
-   -
-      angle: 273.
-      scale: 1.
-   -
       angle: 274.
-      scale: 1.
-   -
-      angle: 275.
       scale: 1.
    -
       angle: 276.

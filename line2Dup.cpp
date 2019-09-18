@@ -33,22 +33,38 @@ static inline int getLabel(int quantized)
 {
     switch (quantized)
     {
-    case 1:
+    case (1 << 0):
         return 0;
-    case 2:
+    case (1 << 1):
         return 1;
-    case 4:
+    case (1 << 2):
         return 2;
-    case 8:
+    case (1 << 3):
         return 3;
-    case 16:
+    case (1 << 4):
         return 4;
-    case 32:
+    case (1 << 5):
         return 5;
-    case 64:
+    case (1 << 6):
         return 6;
-    case 128:
+    case (1 << 7):
         return 7;
+    case (1 << 8):
+        return 8;
+    case (1 << 9):
+        return 9;
+    case (1 << 10):
+        return 10;
+    case (1 << 11):
+        return 11;
+    case (1 << 12):
+        return 12;
+    case (1 << 13):
+        return 13;
+    case (1 << 14):
+        return 14;
+    case (1 << 15):
+        return 15;
     default:
         CV_Error(Error::StsBadArg, "Invalid value of quantized parameter");
         return -1; //avoid warning
@@ -222,28 +238,18 @@ void hysteresisGradient(Mat &magnitude, Mat &quantized_angle,
 
     // Zero out top and bottom rows
     /// @todo is this necessary, or even correct?
-    memset(quantized_unfiltered.ptr(), 0, quantized_unfiltered.cols);
-    memset(quantized_unfiltered.ptr(quantized_unfiltered.rows - 1), 0, quantized_unfiltered.cols);
-    // Zero out first and last columns
-    for (int r = 0; r < quantized_unfiltered.rows; ++r)
-    {
-        quantized_unfiltered(r, 0) = 0;
-        quantized_unfiltered(r, quantized_unfiltered.cols - 1) = 0;
-    }
-
-    // Mask 16 buckets into 8 quantized orientations
-    for (int r = 1; r < angle.rows - 1; ++r)
-    {
-        uchar *quant_r = quantized_unfiltered.ptr<uchar>(r);
-        for (int c = 1; c < angle.cols - 1; ++c)
-        {
-            quant_r[c] &= 7;
-        }
-    }
+//    memset(quantized_unfiltered.ptr(), 0, quantized_unfiltered.cols);
+//    memset(quantized_unfiltered.ptr(quantized_unfiltered.rows - 1), 0, quantized_unfiltered.cols);
+//    // Zero out first and last columns
+//    for (int r = 0; r < quantized_unfiltered.rows; ++r)
+//    {
+//        quantized_unfiltered(r, 0) = 0;
+//        quantized_unfiltered(r, quantized_unfiltered.cols - 1) = 0;
+//    }
 
     // Filter the raw quantized image. Only accept pixels where the magnitude is above some
     // threshold, and there is local agreement on the quantization.
-    quantized_angle = Mat::zeros(angle.size(), CV_8U);
+    quantized_angle = Mat::zeros(angle.size(), CV_16U);
     for (int r = 1; r < angle.rows - 1; ++r)
     {
         float *mag_r = magnitude.ptr<float>(r);
@@ -253,7 +259,7 @@ void hysteresisGradient(Mat &magnitude, Mat &quantized_angle,
             if (mag_r[c] > threshold)
             {
                 // Compute histogram of quantized bins in 3x3 patch around pixel
-                int histogram[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+                int histogram[16] = {0};
 
                 uchar *patch3x3_row = &quantized_unfiltered(r - 1, c - 1);
                 histogram[patch3x3_row[0]]++;
@@ -273,7 +279,7 @@ void hysteresisGradient(Mat &magnitude, Mat &quantized_angle,
                 // Find bin with the most votes from the patch
                 int max_votes = 0;
                 int index = -1;
-                for (int i = 0; i < 8; ++i)
+                for (int i = 0; i < 16; ++i)
                 {
                     if (max_votes < histogram[i])
                     {
@@ -285,7 +291,7 @@ void hysteresisGradient(Mat &magnitude, Mat &quantized_angle,
                 // Only accept the quantization if majority of pixels in the patch agree
                 static const int NEIGHBOR_THRESHOLD = 5;
                 if (max_votes >= NEIGHBOR_THRESHOLD)
-                    quantized_angle.at<uchar>(r, c) = uchar(1 << index);
+                    quantized_angle.at<uint16_t>(r, c) = uint16_t(1 << index);
             }
         }
     }
@@ -479,9 +485,9 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
                     }
                 }
 
-                if (score > threshold_sq && angle.at<uchar>(r, c) > 0)
+                if (score > threshold_sq && angle.at<uint16_t>(r, c) > 0)
                 {
-                    candidates.push_back(Candidate(c, r, getLabel(angle.at<uchar>(r, c)), score));
+                    candidates.push_back(Candidate(c, r, getLabel(angle.at<uint16_t>(r, c)), score));
                 }
             }
         }
@@ -549,8 +555,8 @@ void ColorGradient::write(FileStorage &fs) const
 *                                                                 Response maps                                                                                    *
 \****************************************************************************************/
 
-static void orUnaligned8u(const uchar *src, const int src_stride,
-                          uchar *dst, const int dst_stride,
+static void orUnaligned16u(const uint16_t *src, const int src_stride,
+                          uint16_t *dst, const int dst_stride,
                           const int width, const int height)
 {
     for (int r = 0; r < height; ++r)
@@ -565,12 +571,12 @@ static void orUnaligned8u(const uchar *src, const int src_stride,
 
         // avoid out of bound when can't divid
         // note: can't use c<width !!!
-        for (; c <= width-mipp::N<uint8_t>(); c+=mipp::N<uint8_t>()){
-            mipp::Reg<uint8_t> src_v((uint8_t*)src + c);
-            mipp::Reg<uint8_t> dst_v((uint8_t*)dst + c);
+        for (; c <= width-mipp::N<int16_t>(); c+=mipp::N<int16_t>()){
+            mipp::Reg<int16_t> src_v((int16_t*)src + c);
+            mipp::Reg<int16_t> dst_v((int16_t*)dst + c);
 
-            mipp::Reg<uint8_t> res_v = mipp::orb(src_v, dst_v);
-            res_v.store((uint8_t*)dst + c);
+            mipp::Reg<int16_t> res_v = mipp::orb(src_v, dst_v);
+            res_v.store((int16_t*)dst + c);
         }
 
         for(; c<width; c++)
@@ -585,133 +591,43 @@ static void orUnaligned8u(const uchar *src, const int src_stride,
 static void spread(const Mat &src, Mat &dst, int T)
 {
     // Allocate and zero-initialize spread (OR'ed) image
-    dst = Mat::zeros(src.size(), CV_8U);
+    dst = Mat::zeros(src.size(), CV_16U);
 
     // Fill in spread gradient image (section 2.3)
     for (int r = 0; r < T; ++r)
     {
         for (int c = 0; c < T; ++c)
         {
-            orUnaligned8u(&src.at<unsigned char>(r, c), static_cast<const int>(src.step1()), dst.ptr(),
-                          static_cast<const int>(dst.step1()), src.cols - c, src.rows - r);
+            orUnaligned16u(&src.at<uint16_t>(r, c), src.cols, (uint16_t*)dst.ptr(),
+                          dst.cols, src.cols - c, src.rows - r);
         }
     }
 }
-
-// 1,2-->0 3-->1
-CV_DECL_ALIGNED(16)
-static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
 
 static void computeResponseMaps(const Mat &src, std::vector<Mat> &response_maps)
 {
     CV_Assert((src.rows * src.cols) % 16 == 0);
 
     // Allocate response maps
-    response_maps.resize(8);
-    for (int i = 0; i < 8; ++i)
+    response_maps.resize(16);
+    for (int i = 0; i < 16; ++i)
         response_maps[i].create(src.size(), CV_8U);
 
-    Mat lsb4(src.size(), CV_8U);
-    Mat msb4(src.size(), CV_8U);
+    const uchar scores[2] = {4, 1};
+    const uint16_t hit_mask[16] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768};
+    const uint16_t side_mask[16] = {32770, 5, 10, 20, 40, 80, 160, 320,
+                                    640, 1280, 2560, 5120, 10240, 20480, 40960, 16385};
 
-    for (int r = 0; r < src.rows; ++r)
-    {
-        const uchar *src_r = src.ptr(r);
-        uchar *lsb4_r = lsb4.ptr(r);
-        uchar *msb4_r = msb4.ptr(r);
-
-        for (int c = 0; c < src.cols; ++c)
-        {
-            // Least significant 4 bits of spread image pixel
-            lsb4_r[c] = src_r[c] & 15;
-            // Most significant 4 bits, right-shifted to be in [0, 16)
-            msb4_r[c] = (src_r[c] & 240) >> 4;
-        }
-    }
-
-    {
-        uchar *lsb4_data = lsb4.ptr<uchar>();
-        uchar *msb4_data = msb4.ptr<uchar>();
-
-        bool no_max = true;
-        bool no_shuff = true;
-
-#ifdef has_max_int8_t
-        no_max = false;
-#endif
-
-#ifdef has_shuff_int8_t
-        no_shuff = false;
-#endif
-        // LUT is designed for 128 bits SIMD, so quite triky for others
-
-        // For each of the 8 quantized orientations...
-        for (int ori = 0; ori < 8; ++ori){
+        for (int ori = 0; ori < 16; ++ori){
             uchar *map_data = response_maps[ori].ptr<uchar>();
-            const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
+            uint16_t* src_ptr = (uint16_t*)src.ptr();
+            for (int i = 0; i < src.rows * src.cols; ++i){
 
-            if(mipp::N<uint8_t>() == 1 || no_max || no_shuff){ // no SIMD
-                for (int i = 0; i < src.rows * src.cols; ++i)
-                    map_data[i] = std::max(lut_low[lsb4_data[i]], lut_low[msb4_data[i] + 16]);
-            }
-            else if(mipp::N<uint8_t>() == 16){ // 128 SIMD, no add base
-
-                const uchar *lut_low = SIMILARITY_LUT + 32 * ori;
-                mipp::Reg<uint8_t> lut_low_v((uint8_t*)lut_low);
-                mipp::Reg<uint8_t> lut_high_v((uint8_t*)lut_low + 16);
-
-                for (int i = 0; i < src.rows * src.cols; i += mipp::N<uint8_t>()){
-                    mipp::Reg<uint8_t> low_mask((uint8_t*)lsb4_data + i);
-                    mipp::Reg<uint8_t> high_mask((uint8_t*)msb4_data + i);
-
-                    mipp::Reg<uint8_t> low_res = mipp::shuff(lut_low_v, low_mask);
-                    mipp::Reg<uint8_t> high_res = mipp::shuff(lut_high_v, high_mask);
-
-                    mipp::Reg<uint8_t> result = mipp::max(low_res, high_res);
-                    result.store((uint8_t*)map_data + i);
-                }
-            }
-            else if(mipp::N<uint8_t>() == 16 || mipp::N<uint8_t>() == 32
-                    || mipp::N<uint8_t>() == 64){ //128 256 512 SIMD
-                CV_Assert((src.rows * src.cols) % mipp::N<uint8_t>() == 0);
-
-                uint8_t lut_temp[mipp::N<uint8_t>()] = {0};
-
-                for(int slice=0; slice<mipp::N<uint8_t>()/16; slice++){
-                    std::copy_n(lut_low, 16, lut_temp+slice*16);
-                }
-                mipp::Reg<uint8_t> lut_low_v(lut_temp);
-
-                uint8_t base_add_array[mipp::N<uint8_t>()] = {0};
-                for(uint8_t slice=0; slice<mipp::N<uint8_t>(); slice+=16){
-                    std::copy_n(lut_low+16, 16, lut_temp+slice);
-                    std::fill_n(base_add_array+slice, 16, slice);
-                }
-                mipp::Reg<uint8_t> base_add(base_add_array);
-                mipp::Reg<uint8_t> lut_high_v(lut_temp);
-
-                for (int i = 0; i < src.rows * src.cols; i += mipp::N<uint8_t>()){
-                    mipp::Reg<uint8_t> mask_low_v((uint8_t*)lsb4_data+i);
-                    mipp::Reg<uint8_t> mask_high_v((uint8_t*)msb4_data+i);
-
-                    mask_low_v += base_add;
-                    mask_high_v += base_add;
-
-                    mipp::Reg<uint8_t> shuff_low_result = mipp::shuff(lut_low_v, mask_low_v);
-                    mipp::Reg<uint8_t> shuff_high_result = mipp::shuff(lut_high_v, mask_high_v);
-
-                    mipp::Reg<uint8_t> result = mipp::max(shuff_low_result, shuff_high_result);
-                    result.store((uint8_t*)map_data + i);
-                }
-            }
-            else{
-                for (int i = 0; i < src.rows * src.cols; ++i)
-                    map_data[i] = std::max(lut_low[lsb4_data[i]], lut_low[msb4_data[i] + 16]);
+                uchar s0 = (hit_mask[ori] & src_ptr[i]) ? scores[0] : 0;
+                uchar s1 = (side_mask[ori] & src_ptr[i]) ? scores[1] : 0;
+                map_data[i] = std::max(s0, s1);
             }
         }
-
-
-    }
 }
 
 static void linearize(const Mat &response_map, Mat &linearized, int T)
@@ -1054,7 +970,7 @@ std::vector<Match> Detector::match(Mat source, float threshold,
 
     // pyramid level -> ColorGradient -> quantization
     LinearMemoryPyramid lm_pyramid(pyramid_levels,
-                                   std::vector<LinearMemories>(1, LinearMemories(8)));
+                                   std::vector<LinearMemories>(1, LinearMemories(16)));
 
     // For each pyramid level, precompute linear memories for each ColorGradient
     std::vector<Size> sizes;
@@ -1078,7 +994,7 @@ std::vector<Match> Detector::match(Mat source, float threshold,
             computeResponseMaps(spread_quantized, response_maps);
 
             LinearMemories &memories = lm_level[i];
-            for (int j = 0; j < 8; ++j)
+            for (int j = 0; j < 16; ++j)
                 linearize(response_maps[j], memories[j], T);
         }
 
