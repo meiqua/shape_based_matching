@@ -238,14 +238,21 @@ void hysteresisGradient(Mat &magnitude, Mat &quantized_angle,
 
     // Zero out top and bottom rows
     /// @todo is this necessary, or even correct?
-//    memset(quantized_unfiltered.ptr(), 0, quantized_unfiltered.cols);
-//    memset(quantized_unfiltered.ptr(quantized_unfiltered.rows - 1), 0, quantized_unfiltered.cols);
-//    // Zero out first and last columns
-//    for (int r = 0; r < quantized_unfiltered.rows; ++r)
-//    {
-//        quantized_unfiltered(r, 0) = 0;
-//        quantized_unfiltered(r, quantized_unfiltered.cols - 1) = 0;
-//    }
+   memset(quantized_unfiltered.ptr(), 0, quantized_unfiltered.cols);
+   memset(quantized_unfiltered.ptr(quantized_unfiltered.rows - 1), 0, quantized_unfiltered.cols);
+   // Zero out first and last columns
+   for (int r = 0; r < quantized_unfiltered.rows; ++r)
+   {
+       quantized_unfiltered(r, 0) = 0;
+       quantized_unfiltered(r, quantized_unfiltered.cols - 1) = 0;
+   }
+    
+    for (int r = 1; r < angle.rows - 1; ++r){
+        uchar *quant_r = quantized_unfiltered.ptr(r);
+        for (int c = 1; c < angle.cols - 1; ++c){
+            quant_r[c] &= 15;
+        }
+    }
 
     // Filter the raw quantized image. Only accept pixels where the magnitude is above some
     // threshold, and there is local agreement on the quantization.
