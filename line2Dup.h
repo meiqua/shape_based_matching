@@ -4,8 +4,33 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <map>
-
+#include <functional>
 #include "mipp.h"  // for SIMD in different platforms
+
+#include <chrono>
+class Timer
+{
+public:
+    Timer() : beg_(clock_::now()) {}
+    void reset() { beg_ = clock_::now(); }
+    double elapsed() const {
+        return std::chrono::duration_cast<second_>
+            (clock_::now() - beg_).count(); }
+    void out(std::string message = ""){
+        double t = elapsed();
+        std::cout << message << "\nelasped time:" << t << "s\n" << std::endl;
+        reset();
+    }
+private:
+    typedef std::chrono::high_resolution_clock clock_;
+    typedef std::chrono::duration<double, std::ratio<1> > second_;
+    std::chrono::time_point<clock_> beg_;
+};
+class ScopeTimer: public Timer{
+    ScopeTimer(std::string out_str_): out_str(out_str_){}
+    ~ScopeTimer(){out(out_str);}
+    std::string out_str;
+};
 
 namespace line2Dup
 {
@@ -138,6 +163,70 @@ inline Match::Match(int _x, int _y, float _similarity, const std::string &_class
 {
 }
 
+struct FilterNode
+{
+    std::vector<cv::Mat> buffers;
+    bool is_cycle_buffer = true;
+
+    int num_buf = 1;
+    int buffer_rows = 0;
+    int buffer_cols = 0;
+    int padded_rows = 0;
+    int padded_cols = 0;
+
+    int anchor_row = 0;  // anchor: where topleft is in full img
+    int anchor_col = 0;
+    int zero_row = 0;  // zero: where is start row because of rolling buffer, in buffer img
+
+    int prepared_row = 0; // where have been calculated in full img
+    int prepared_col = 0;
+    FilterNode *parent = nullptr;
+
+    std::string op_name;
+    int op_type = CV_16U;
+    int op_r, op_c;
+
+    int simd_step = mipp::N<int16_t>();
+    bool use_simd = true;
+
+    template <class T>
+    T *ptr(int r, int c, int buf_idx = 0)
+    {
+        r -= anchor_row;  // from full img to buffer img
+        c -= anchor_col;
+        r = (r + zero_row) % buffer_rows;  // row is changed because of rolling buffer
+        return &buffers[buf_idx].at<T>(r, c);
+    }
+
+    std::function<int(int, int, int, int)> simple_update;  // update start_r end_r start_c end_c
+    std::function<int(int, int, int, int)> simd_update;
+
+    void backward_rc(int rows, int cols, int cur_padded_rows, int cur_padded_cols) // calculate paddings
+    {
+        if (rows > buffer_rows)
+        {
+            buffer_rows = rows;
+            padded_rows = cur_padded_rows;
+
+            // for upper parent
+            cur_padded_rows += op_r / 2;
+            rows += op_r - 1;
+        }
+        if (cols > buffer_cols)
+        {
+            buffer_cols = cols;
+            padded_cols = cur_padded_cols;
+
+            // for upper parent
+            cur_padded_cols += op_c / 2;
+            cols += op_c - 1;
+        }
+
+        if (parent != nullptr)
+            parent->backward_rc(rows, cols, cur_padded_rows, cur_padded_cols);
+    }
+};
+
 class Detector
 {
 public:
@@ -152,7 +241,6 @@ public:
     std::vector<Match> match(cv::Mat sources, float threshold,
                                                      const std::vector<std::string> &class_ids = std::vector<std::string>(),
                                                      const cv::Mat masks = cv::Mat()) const;
-
     int addTemplate(const cv::Mat sources, const std::string &class_id,
                                     const cv::Mat &object_mask, int num_features = 0);
 
