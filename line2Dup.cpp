@@ -171,9 +171,9 @@ bool ColorGradientPyramid::selectScatteredFeatures(const std::vector<Candidate> 
             i = 0;
             distance -= 1.0f;
             distance_sq = distance * distance;
-             if (num_ok || distance < 3){
-                 break;
-             }
+            if (num_ok || distance < 3){
+                break;
+            }
         }
     }
     if (features.size() >= num_features)
@@ -415,7 +415,7 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
     if (!mask.empty())
     {
         erode(mask, local_mask, Mat(), Point(-1, -1), 1, BORDER_REPLICATE);
-//        subtract(mask, local_mask, local_mask);
+        //        subtract(mask, local_mask, local_mask);
     }
 
     std::vector<Candidate> candidates;
@@ -1025,10 +1025,10 @@ static int gcd(int a, int b){
     if (a == 0)
         return b;
     return gcd(b % a, a);
- }
+}
 static int lcm(int a, int b){
     return (a*b)/gcd(a, b);
- }
+}
 static int least_mul_of_Ts(const std::vector<int>& T_at_level){
     assert(T_at_level.size() > 0);
     int cur_res = T_at_level[0];
@@ -1058,28 +1058,34 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
     // gaussian coff quantization
     const int gauss_size = 5;
-    const int gauss_quant_bit = 3; // should be smaller than 8/2
+    const int gauss_quant_bit = 10; // cvt to int32
     cv::Mat double_gauss = cv::getGaussianKernel(gauss_size, 0, CV_64F);
-    uint16_t gauss_knl_uint16[gauss_size] = {0};
+    int32_t gauss_knl_uint32[gauss_size] = {0};
     for(int i=0; i<gauss_size; i++){
-        gauss_knl_uint16[i] = uint16_t(double_gauss.at<double>(i, 0) * (1<<gauss_quant_bit));
+        gauss_knl_uint32[i] = int32_t(double_gauss.at<double>(i, 0) * (1<<gauss_quant_bit));
     }
 
     cv::Mat pyr_src;
     for(int cur_l = 0; cur_l<T_at_level.size(); cur_l++){
-        cv::Mat src;
-        if(cur_l ==0) src = source;
-        else src = pyr_src;
-
-        const int cur_T = T_at_level[cur_l];
-        assert(cur_T % 2 == 0);
+        const bool need_pyr = cur_l < T_at_level.size() - 1;
 
         const int imgRows = biggest_imgRows >> cur_l;
         const int imgCols = biggest_imgCols >> cur_l;
         const int thread_rows_step = imgRows / num_threads;
         sizes.push_back({imgCols, imgRows});
 
-//#pragma omp parallel for num_threads(num_threads)
+        cv::Mat src;
+        if(cur_l ==0) src = source;
+        else if(need_pyr){
+             src = pyr_src;
+             pyr_src = cv::Mat(imgRows/2, imgCols/2, CV_8UC1, cv::Scalar(0));
+        }else{
+            src = pyr_src;
+        }
+
+        const int cur_T = T_at_level[cur_l];
+        assert(cur_T % 2 == 0);
+        //#pragma omp parallel for num_threads(num_threads)
         for (int thread_i = 0; thread_i < num_threads; thread_i++){
             const int tile_start_rows = thread_i * thread_rows_step;
             const int tile_end_rows = (thread_i + 1) * thread_rows_step;
@@ -1087,7 +1093,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             // node graph:
             // src -- gx 1x5 -- img0 -- gy 5x1 -- img1 -- sxx 1x3 -- img2 -- sxy 3x1 -- img3 -- mag         1x1 -- img4 -- hist 3x3 -- img5
             //                                         -- syx 1x3 --      -- syy 3x1 --         phase+quant 1x1
-
+            //  if need pyrDown:                  img1 -- pyrDown -- pyr_src
             // img5 -- spread 1x5 -- img6 -- spread 5x1 -- img7 -- response 1x1 -- img8 -- linearize no padding -- img9
 
             // assign nodes, put it here because all threads have its own buffer
@@ -1096,9 +1102,11 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             nodes[cur_n].op_name = "gx 1xgauss_size";
             nodes[cur_n].op_r = 1;
             nodes[cur_n].op_c = gauss_size;
+            nodes[cur_n].op_type = CV_32S;
+            nodes[cur_n].simd_step = mipp::N<int32_t>();
             {
                 auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&src, &gauss_knl_uint16, &cur_node, imgCols]
+                nodes[cur_n].simple_update = [&src, &gauss_knl_uint32, &cur_node, imgCols]
                         (int start_r, int end_r, int start_c, int end_c) {
 
                     // src has no padding, so update c should be padded
@@ -1108,38 +1116,48 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     int c = start_c;
                     for (int r = start_r; r < end_r; r++){
                         c = start_c;
-                        int16_t *buf_ptr = cur_node.ptr<int16_t>(r, c);
+                        int32_t *buf_ptr = cur_node.ptr<int32_t>(r, c);
                         uint8_t *parent_buf_ptr = &src.at<uint8_t>(r, c);
                         for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
 
-                            int16_t local_sum = 0;
+                            int32_t local_sum = 0;
                             for(int i=0; i<gauss_size; i++){
-                                local_sum += int16_t(*(parent_buf_ptr - gauss_size/2 + i)) * gauss_knl_uint16[i];
+                                local_sum += int32_t(*(parent_buf_ptr - gauss_size/2 + i)) * gauss_knl_uint32[i];
                             }
                             *buf_ptr = local_sum;
                         }
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&src, imgCols, &gauss_knl_uint16, &cur_node]
+                nodes[cur_n].simd_update = [&src, imgCols, &gauss_knl_uint32, &cur_node]
                         (int start_r, int end_r, int start_c, int end_c) {
 
                     // src has no padding, so update c should be padded
                     if(start_c < gauss_size/2) start_c = gauss_size/2;
                     if(end_c >= imgCols - gauss_size/2) end_c = imgCols - gauss_size/2;
 
+                    mipp::Reg<uint8_t> zero8_v(uint8_t(0));
+                    mipp::Reg<int16_t> zero16_v(int16_t(0));
                     int c = start_c;
-                    for (int r = start_r; r < end_r; r++)
-                    {
+                    for (int r = start_r; r < end_r; r++){
                         c = start_c;
-                        int16_t *buf_ptr = cur_node.ptr<int16_t>(r, c);
+                        int32_t *buf_ptr = cur_node.ptr<int32_t>(r, c);
                         uint8_t *parent_buf_ptr = &src.at<uint8_t>(r, c);
                         for (; c < end_c; c += cur_node.simd_step,
                              buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
-                            if (c + 2*cur_node.simd_step >= imgCols - gauss_size/2)
-                                break; // simd may excel end_c, but avoid simd out of img, *2 because read 2 int16
+                            if (c + 4*cur_node.simd_step >= imgCols - gauss_size/2)
+                                break; // simd may excel end_c, but avoid simd out of img, *4 because int32 = 4*8
 
+                            mipp::Reg<int32_t> local_sum(int32_t(0));
+                            for(int i=0; i<gauss_size; i++){
+                                mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[i]);
+                                mipp::Reg<uint8_t> src8_v((uint8_t*)parent_buf_ptr + i - gauss_size/2);
+                                mipp::Reg<int16_t> src16_v(mipp::interleavelo(src8_v, zero8_v).r);
+                                mipp::Reg<int32_t> src32_v(mipp::interleavelo(src16_v, zero16_v).r);
 
+                                local_sum += gauss_coff * src32_v;
+                            }
+                            local_sum.store(buf_ptr);
                         }
                     }
 
@@ -1150,478 +1168,537 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             }
 
             cur_n++;
-             nodes.resize(nodes.size() + 1);
-             nodes[cur_n].op_name = "gy gauss_sizex1";
-             nodes[cur_n].op_r = gauss_size;
-             nodes[cur_n].op_c = 1;
-             nodes[cur_n].parent = &nodes[cur_n - 1];
-             {
-                 auto &cur_node = nodes[cur_n];
-                 nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         int16_t *buf_ptr = cur_node.ptr<int16_t>(r, c);
-                         int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
-                         for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
-                         {
-                         }
-                     }
-                     return c;
-                 };
-                 nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         int16_t *buf_ptr = cur_node.ptr<int16_t>(r, c);
-                         int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
-                         for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
-                         {
-                             if (c + cur_node.simd_step >= imgCols)
-                                 break; // simd may excel end_c, but avoid simd out of img
-                         }
-                     }
+            nodes.resize(nodes.size() + 1);
+            nodes[cur_n].op_name = "gy gauss_sizex1";
+            nodes[cur_n].op_r = gauss_size;
+            nodes[cur_n].op_c = 1;
+            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].simd_step = mipp::N<int32_t>();  // type is 16U, but step is 32
+            {
+                auto &cur_node = nodes[cur_n];
+                nodes[cur_n].simple_update = [&cur_node, &gauss_knl_uint32, &pyr_src, &need_pyr](int start_r, int end_r, int start_c, int end_c){
+                    auto &parent_node = *cur_node.parent;
+                    int col_step = parent_node.buffer_cols;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++){
+                        c = start_c;
+                        int16_t *buf_ptr = cur_node.ptr<int16_t>(r, c);
+                        int32_t *parent_buf_ptr = parent_node.ptr<int32_t>(r, c);
+                        uint8_t* pyr_src_ptr = &pyr_src.at<uint8_t>(r/2, c/2);
 
-                     if (c < end_c)
-                         return cur_node.simple_update(start_r, end_r, c, end_c);
-                     return c;
-                 };
-             }
+                        bool even_row = r%2 == 0;
+                        for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
+                            int32_t local_sum = 0;
+                            int offset_r =  - col_step * (gauss_size/2);
+                            for(int i=0; i<gauss_size; i++, offset_r+=col_step){
+                                local_sum += gauss_knl_uint32[i] * (*(parent_buf_ptr + offset_r));
+                            }
+                            *buf_ptr = int16_t(local_sum >> (2*gauss_quant_bit));
 
-             cur_n++;
-             nodes.resize(nodes.size() + 1);
-             nodes[cur_n].op_name = "sxx syx 1x3";
-             nodes[cur_n].op_r = 1;
-             nodes[cur_n].op_c = 3;
-             nodes[cur_n].parent = &nodes[cur_n - 1];
-             nodes[cur_n].num_buf = 2;
-             {
-                 auto &cur_node = nodes[cur_n];
-                 nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
-                         int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
-                         int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
-                         for (; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr++)
-                         {
-                         }
-                     }
-                     return c;
-                 };
-                 nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
-                         int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
-                         int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
-                         for (; c < end_c; c += cur_node.simd_step, buf_ptr_0 += cur_node.simd_step,
-                              buf_ptr_1 += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
-                         {
-                             if (c + cur_node.simd_step >= imgCols)
-                                 break; // simd may excel end_c, but avoid simd out of img
-                         }
-                     }
+                            if(need_pyr && even_row){
+                                if(c%2 == 0){
+                                    *pyr_src_ptr = uint8_t(*buf_ptr);
+                                    pyr_src_ptr++;
+                                }
+                            }
+                        }
+                    }
+                    return c;
+                };
+                nodes[cur_n].simd_update = [imgCols, &cur_node, &pyr_src, &gauss_knl_uint32, &need_pyr](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int col_step = parent_node.buffer_cols;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++){
+                        c = start_c;
+                        int16_t *buf_ptr = cur_node.ptr<int16_t>(r, c);
+                        int32_t *parent_buf_ptr = parent_node.ptr<int32_t>(r, c);
+                        uint8_t *pyr_src_ptr = &pyr_src.at<uint8_t>(r/2, c/2);
 
-                     if (c < end_c)
-                         return cur_node.simple_update(start_r, end_r, c, end_c);
+                        bool even_row = r%2 == 0;
+                        for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
+                             parent_buf_ptr += cur_node.simd_step){
+                            if (c + 2*cur_node.simd_step >= imgCols)
+                                break; // simd may excel end_c, but avoid simd out of img
 
-                     return c;
-                 };
-             }
+                            int offset_r =  - col_step * (gauss_size/2);
+                            mipp::Reg<int32_t> local_sum(int32_t(0));
+                            for(int i=0; i<gauss_size; i++, offset_r+=col_step){
+                                mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[i]);
+                                mipp::Reg<int32_t> src32_v(parent_buf_ptr + offset_r);
 
-             cur_n++;
-             nodes.resize(nodes.size() + 1);
-             nodes[cur_n].op_name = "sxy syy 3x1";
-             nodes[cur_n].op_r = 3;
-             nodes[cur_n].op_c = 1;
-             nodes[cur_n].parent = &nodes[cur_n - 1];
-             nodes[cur_n].num_buf = 2;
-             {
-                 auto &cur_node = nodes[cur_n];
-                 nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
-                         int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
-                         int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
-                         int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
-                         for (; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr_0++, parent_buf_ptr_1++)
-                         {
-                         }
-                     }
-                     return c;
-                 };
-                 nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
-                         int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
-                         int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
-                         int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
-                         for (; c < end_c; c += cur_node.simd_step, buf_ptr_0 += cur_node.simd_step, buf_ptr_1 += cur_node.simd_step,
-                                           parent_buf_ptr_0 += cur_node.simd_step, parent_buf_ptr_1 += cur_node.simd_step)
-                         {
-                             if (c + cur_node.simd_step >= imgCols)
-                                 break; // simd may excel end_c, but avoid simd out of img
-                         }
-                     }
+                                local_sum += gauss_coff * src32_v;
+                            }
+                            local_sum >>= (2*gauss_quant_bit);
+                            mipp::Reg<int32_t> zero32_v(int32_t(0));
+                            mipp::Reg<int16_t> local_sum_int16 = mipp::pack<int32_t,int16_t>(local_sum, zero32_v);
+                            local_sum_int16.store(buf_ptr);
 
-                     if (c < end_c)
-                         return cur_node.simple_update(start_r, end_r, c, end_c);
+                            if(need_pyr && even_row){
+                                if(c%2 == 0){
+                                    for(int i=0; i<cur_node.simd_step; i+=2, pyr_src_ptr++){
+                                        *pyr_src_ptr = uint8_t(*(buf_ptr+i));
+                                    }
+                                }else{
+                                    for(int i=1; i<cur_node.simd_step; i+=2, pyr_src_ptr++){
+                                        *pyr_src_ptr = uint8_t(*(buf_ptr+i));
+                                    }
+                                }
+                            }
+                        }
+                    }
 
-                     return c;
-                 };
-             }
+                    if (c < end_c)
+                        return cur_node.simple_update(start_r, end_r, c, end_c);
+                    return c;
+                };
+            }
 
-             cur_n++;
-             nodes.resize(nodes.size() + 1);
-             nodes[cur_n].op_name = "mag phase quant 1x1";
-             nodes[cur_n].op_r = 1;
-             nodes[cur_n].op_c = 1;
-             nodes[cur_n].parent = &nodes[cur_n - 1];
-             nodes[cur_n].op_type = CV_8U;
-             nodes[cur_n].simd_step = mipp::N<int8_t>();
-             {
-                 auto &cur_node = nodes[cur_n];
-                 nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
-                         int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
-                         int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
-                         for (; c < end_c; c++, buf_ptr++, parent_buf_ptr_0++, parent_buf_ptr_1++)
-                         {
-                         }
-                     }
-                     return c;
-                 };
-                 nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
-                         int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
-                         int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
-                         for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
-                                           parent_buf_ptr_0 += cur_node.simd_step, parent_buf_ptr_1 += cur_node.simd_step)
-                         {
-                             if (c + cur_node.simd_step >= imgCols)
-                                 break; // simd may excel end_c, but avoid simd out of img
-                         }
-                     }
+            cur_n++;
+            nodes.resize(nodes.size() + 1);
+            nodes[cur_n].op_name = "sxx syx 1x3";
+            nodes[cur_n].op_r = 1;
+            nodes[cur_n].op_c = 3;
+            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].num_buf = 2;
+            {
+                auto &cur_node = nodes[cur_n];
+                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++){
+                        c = start_c;
+                        int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
+                        int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
+                        int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
+                        for (; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr++){
+                            // sxx  -1 0 1
+                            *buf_ptr_0 = -*(parent_buf_ptr-1) + *(parent_buf_ptr+1);
 
-                     if (c < end_c)
-                         return cur_node.simple_update(start_r, end_r, c, end_c);
-                     return c;
-                 };
-             }
+                            // sxy   1 2 1
+                            *buf_ptr_1 = *(parent_buf_ptr-1) + 2*(*parent_buf_ptr) + *(parent_buf_ptr+1);
+                        }
+                    }
+                    return c;
+                };
+                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++){
+                        c = start_c;
+                        int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
+                        int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
+                        int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
+                        for (; c < end_c; c += cur_node.simd_step, buf_ptr_0 += cur_node.simd_step,
+                             buf_ptr_1 += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
+                            if (c + cur_node.simd_step >= imgCols)
+                                break; // simd may excel end_c, but avoid simd out of img
 
-             cur_n++;
-             nodes.resize(nodes.size() + 1);
-             nodes[cur_n].op_name = "hist 3x3";
-             nodes[cur_n].op_r = 3;
-             nodes[cur_n].op_c = 3;
-             nodes[cur_n].parent = &nodes[cur_n - 1];
-             nodes[cur_n].op_type = CV_8U;
-             nodes[cur_n].simd_step = mipp::N<int8_t>();
-             nodes[cur_n].use_simd = false;
-             {
-                 auto &cur_node = nodes[cur_n];
-                 nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
-                         uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                         for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
-                         {
-                         }
-                     }
-                     return c;
-                 };
-                 nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
-                         uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                         for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
-                         {
-                             if (c + cur_node.simd_step >= imgCols)
-                                 break; // simd may excel end_c, but avoid simd out of img
-                         }
-                     }
+                            mipp::Reg<int16_t> p0(parent_buf_ptr-1);
+                            mipp::Reg<int16_t> p1(parent_buf_ptr);
+                            mipp::Reg<int16_t> p2(parent_buf_ptr);
 
-                     if (c < end_c)
-                         return cur_node.simple_update(start_r, end_r, c, end_c);
-                     return c;
-                 };
-             }
+                            mipp::Reg<int16_t> sxx = p2 - p0;
+                            mipp::Reg<int16_t> sxy = p2 + p0 + (p1 << 1);
 
-             cur_n++;
-             nodes.resize(nodes.size() + 1);
-             nodes[cur_n].op_name = "spread 1x5";
-             nodes[cur_n].op_r = 1;
-             nodes[cur_n].op_c = cur_T + 1;
-             nodes[cur_n].parent = &nodes[cur_n - 1];
-             nodes[cur_n].op_type = CV_8U;
-             nodes[cur_n].simd_step = mipp::N<int8_t>();
-             {
-                 auto &cur_node = nodes[cur_n];
-                 nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
-                         uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                         for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
-                         {
-                         }
-                     }
-                     return c;
-                 };
-                 nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
-                         uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                         for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
-                         {
-                             if (c + cur_node.simd_step >= imgCols)
-                                 break; // simd may excel end_c, but avoid simd out of img
-                         }
-                     }
+                            sxx.store(buf_ptr_0);
+                            sxy.store(buf_ptr_1);
+                        }
+                    }
 
-                     if (c < end_c)
-                         return cur_node.simple_update(start_r, end_r, c, end_c);
-                     return c;
-                 };
-             }
+                    if (c < end_c)
+                        return cur_node.simple_update(start_r, end_r, c, end_c);
 
-             cur_n++;
-             nodes.resize(nodes.size() + 1);
-             nodes[cur_n].op_name = "spread 5x1";
-             nodes[cur_n].op_r = cur_T + 1;
-             nodes[cur_n].op_c = 1;
-             nodes[cur_n].parent = &nodes[cur_n - 1];
-             nodes[cur_n].op_type = CV_8U;
-             nodes[cur_n].simd_step = mipp::N<int8_t>();
-             {
-                 auto &cur_node = nodes[cur_n];
-                 nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
-                         uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                         for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
-                         {
-                         }
-                     }
-                     return c;
-                 };
-                 nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int r = start_r; r < end_r; r++)
-                     {
-                         c = start_c;
-                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
-                         uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                         for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
-                         {
-                             if (c + cur_node.simd_step >= imgCols)
-                                 break; // simd may excel end_c, but avoid simd out of img
-                         }
-                     }
+                    return c;
+                };
+            }
 
-                     if (c < end_c)
-                         return cur_node.simple_update(start_r, end_r, c, end_c);
-                     return c;
-                 };
-             }
+            cur_n++;
+            nodes.resize(nodes.size() + 1);
+            nodes[cur_n].op_name = "sxy syy 3x1";
+            nodes[cur_n].op_r = 3;
+            nodes[cur_n].op_c = 1;
+            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].num_buf = 2;
+            {
+                auto &cur_node = nodes[cur_n];
+                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    const int col_step = cur_node.buffer_cols;
+                    for (int r = start_r; r < end_r; r++){
+                        c = start_c;
+                        int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
+                        int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
+                        int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
+                        int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
+                        for(; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr_0++, parent_buf_ptr_1++){
+                            // sxy  1 2 1
+                            *buf_ptr_0 = *(parent_buf_ptr_0-col_step) +
+                                    2*(*parent_buf_ptr_0) + *(parent_buf_ptr_0+col_step);
 
-             cur_n++;
-             nodes.resize(nodes.size() + 1);
-             nodes[cur_n].op_name = "response 1x1";
-             nodes[cur_n].op_r = 1;
-             nodes[cur_n].op_c = 1;
-             nodes[cur_n].parent = &nodes[cur_n - 1];
-             nodes[cur_n].num_buf = 8;
-             nodes[cur_n].op_type = CV_8U;
-             nodes[cur_n].simd_step = mipp::N<int8_t>();
-             {
-                 auto &cur_node = nodes[cur_n];
-                 nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int i = 0; i < 8; i++)
-                     {
-                         for (int r = start_r; r < end_r; r++)
-                         {
-                             c = start_c;
-                             uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, i);
-                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                             for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
-                             {
-                             }
-                         }
-                     }
-                     return c;
-                 };
-                 nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *cur_node.parent;
-                     int c = start_c;
-                     for (int i = 0; i < 8; i++)
-                     {
-                         for (int r = start_r; r < end_r; r++)
-                         {
-                             c = start_c;
-                             uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, i);
-                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                             for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
-                             {
-                                 if (c + cur_node.simd_step >= imgCols)
-                                     break; // simd may excel end_c, but avoid simd out of img
-                             }
-                         }
+                            // syy  -1 0 1
+                            *buf_ptr_1 = -*(parent_buf_ptr_1-col_step) + *(parent_buf_ptr_1+col_step);
+                        }
+                    }
+                    return c;
+                };
+                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++)
+                    {
+                        c = start_c;
+                        int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
+                        int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
+                        int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
+                        int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
+                        for (; c < end_c; c += cur_node.simd_step, buf_ptr_0 += cur_node.simd_step, buf_ptr_1 += cur_node.simd_step,
+                             parent_buf_ptr_0 += cur_node.simd_step, parent_buf_ptr_1 += cur_node.simd_step)
+                        {
+                            if (c + cur_node.simd_step >= imgCols)
+                                break; // simd may excel end_c, but avoid simd out of img
+                        }
+                    }
 
-                         if (c < end_c)
-                             return cur_node.simple_update(start_r, end_r, c, end_c);
-                     }
-                     return c;
-                 };
-             }
+                    if (c < end_c)
+                        return cur_node.simple_update(start_r, end_r, c, end_c);
 
-             cur_n++;
-             nodes.resize(nodes.size() + 1);
-             nodes[cur_n].op_name = "linearize 1x1";
-             nodes[cur_n].op_r = 1;
-             nodes[cur_n].op_c = 1;
-             nodes[cur_n].parent = &nodes[cur_n - 1];
-             nodes[cur_n].num_buf = 0; // last buffer is output, no need to alloc
-             nodes[cur_n].op_type = CV_8U;
-             nodes[cur_n].simd_step = mipp::N<int8_t>();
-             nodes[cur_n].use_simd = false;
-             nodes[cur_n].is_cycle_buffer = false;
-             nodes[cur_n].buffers = lm_pyramid[cur_l][0]; // vector<Mat> pass by value, but Mat is by ref
+                    return c;
+                };
+            }
 
-             const int linearize_row_step = imgCols / cur_T;
-             {
-                 auto &cur_node = nodes[cur_n];
-                 nodes[cur_n].simple_update = [linearize_row_step, cur_T, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                     auto &parent_node = *(cur_node.parent);
+            cur_n++;
+            nodes.resize(nodes.size() + 1);
+            nodes[cur_n].op_name = "mag phase quant 1x1";
+            nodes[cur_n].op_r = 1;
+            nodes[cur_n].op_c = 1;
+            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].op_type = CV_8U;
+            nodes[cur_n].simd_step = mipp::N<int8_t>();
+            {
+                auto &cur_node = nodes[cur_n];
+                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++)
+                    {
+                        c = start_c;
+                        uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
+                        int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
+                        int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
+                        for (; c < end_c; c++, buf_ptr++, parent_buf_ptr_0++, parent_buf_ptr_1++)
+                        {
+                        }
+                    }
+                    return c;
+                };
+                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++)
+                    {
+                        c = start_c;
+                        uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
+                        int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
+                        int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
+                        for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
+                             parent_buf_ptr_0 += cur_node.simd_step, parent_buf_ptr_1 += cur_node.simd_step)
+                        {
+                            if (c + cur_node.simd_step >= imgCols)
+                                break; // simd may excel end_c, but avoid simd out of img
+                        }
+                    }
 
-                     for (int i = 0; i < 8; i++)
-                     {
-                         // assume cur_T = 4, row col of the linearized response_map:
-                         // int lrs = linearize_row_step;
-                         //       0            1            2            3             lrs - 1
-                         //  0  1  2  3   0  1  2  3   0  1  2  3   0  1  2  3  ...
-                         //  4  5  6  7   4  5  6  7   4  5  6  7   4  5  6  7  ...
-                         //  8  9 10 11   8  9 10 11   8  9 10 11   8  9 10 11  ...
-                         // 12 13 14 15  12 13 14 15  12 13 14 15  12 13 14 15  ...
-                         // ----------------------------------------------------
-                         //     lrs+0        lrs+1        lrs+2       lrs+3            2*lrs - 1
-                         //  0  1  2  3   0  1  2  3   0  1  2  3   0  1  2  3  ...
-                         //  4  5  6  7   4  5  6  7   4  5  6  7   4  5  6  7  ...
-                         //  8  9 10 11   8  9 10 11   8  9 10 11   8  9 10 11  ...
-                         // 12 13 14 15  12 13 14 15  12 13 14 15  12 13 14 15  ...
-                         // ----------------------------------------------------
-                         //   2*lrs+0      2*lrs+1       2*lrs+2     2*lrs+3           3*lrs - 1
-                         //  0  1  2  3   0  1  2  3   0  1  2  3   0  1  2  3  ...
-                         //  4  5  6  7   4  5  6  7   4  5  6  7   4  5  6  7  ...
-                         //  8  9 10 11   8  9 10 11   8  9 10 11   8  9 10 11  ...
-                         // 12 13 14 15  12 13 14 15  12 13 14 15  12 13 14 15  ...
+                    if (c < end_c)
+                        return cur_node.simple_update(start_r, end_r, c, end_c);
+                    return c;
+                };
+            }
 
-                         // so :
-                         // int target_c = linearize_row_step * (r / cur_T) + c / cur_T;
-                         // int target_r = cur_T * (r % cur_T) + c % cur_T;
+            cur_n++;
+            nodes.resize(nodes.size() + 1);
+            nodes[cur_n].op_name = "hist 3x3";
+            nodes[cur_n].op_r = 3;
+            nodes[cur_n].op_c = 3;
+            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].op_type = CV_8U;
+            nodes[cur_n].simd_step = mipp::N<int8_t>();
+            nodes[cur_n].use_simd = false;
+            {
+                auto &cur_node = nodes[cur_n];
+                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++)
+                    {
+                        c = start_c;
+                        uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
+                        uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
+                        for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
+                        {
+                        }
+                    }
+                    return c;
+                };
+                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++)
+                    {
+                        c = start_c;
+                        uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
+                        uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
+                        for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
+                        {
+                            if (c + cur_node.simd_step >= imgCols)
+                                break; // simd may excel end_c, but avoid simd out of img
+                        }
+                    }
 
-                         // // cleaner codes, but heavy math operation in the innermost loop
-                         // int c = start_c;
-                         // for (int r = start_r; r < end_r; r++)
-                         // {
-                         //     c = start_c;
-                         //     uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c, i);
-                         //     for (; c < end_c; c++, parent_buf_ptr++)
-                         //     {
-                         //         int target_c = linearize_row_step * (r / cur_T) + c / cur_T;
-                         //         int target_r = cur_T * (r % cur_T) + c % cur_T;
-                         //         response_map[i].at<uint8_t>(target_r, target_c) = *parent_buf_ptr;
-                         //     }
-                         // }
+                    if (c < end_c)
+                        return cur_node.simple_update(start_r, end_r, c, end_c);
+                    return c;
+                };
+            }
 
-                         // more codes, but less operation int the innermost loop
-                         assert(start_c % cur_T == 0);
-                         int target_start_c = linearize_row_step * (start_r / cur_T) + start_c / cur_T;
-                         int target_start_r = cur_T * (start_r % cur_T);
+            cur_n++;
+            nodes.resize(nodes.size() + 1);
+            nodes[cur_n].op_name = "spread 1x5";
+            nodes[cur_n].op_r = 1;
+            nodes[cur_n].op_c = cur_T + 1;
+            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].op_type = CV_8U;
+            nodes[cur_n].simd_step = mipp::N<int8_t>();
+            {
+                auto &cur_node = nodes[cur_n];
+                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++)
+                    {
+                        c = start_c;
+                        uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
+                        uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
+                        for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
+                        {
+                        }
+                    }
+                    return c;
+                };
+                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++)
+                    {
+                        c = start_c;
+                        uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
+                        uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
+                        for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
+                        {
+                            if (c + cur_node.simd_step >= imgCols)
+                                break; // simd may excel end_c, but avoid simd out of img
+                        }
+                    }
 
-                         for (int tileT_r = start_r; tileT_r < start_r + cur_T; ++tileT_r)
-                         {
-                             for (int tileT_c = start_c; tileT_c < start_c + cur_T; ++tileT_c)
-                             {
-                                 uint8_t *memory = &cur_node.buffers[i].at<uint8_t>(target_start_r, target_start_c);
-                                 target_start_r = (target_start_r + 1) % (cur_T * cur_T);
+                    if (c < end_c)
+                        return cur_node.simple_update(start_r, end_r, c, end_c);
+                    return c;
+                };
+            }
 
-                                 // Inner two loops copy every T-th pixel into the linear memory
-                                 int c = 0;
-                                 for (int r = tileT_r; r < end_r; r += cur_T, memory += linearize_row_step)
-                                 {
-                                     uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c + tileT_c, i);
-                                     for (; c + tileT_c < end_c; c += cur_T)
-                                         *memory++ = parent_buf_ptr[c];
-                                 }
-                             }
-                         }
-                     }
-                     return end_c;
-                 };
-             }
+            cur_n++;
+            nodes.resize(nodes.size() + 1);
+            nodes[cur_n].op_name = "spread 5x1";
+            nodes[cur_n].op_r = cur_T + 1;
+            nodes[cur_n].op_c = 1;
+            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].op_type = CV_8U;
+            nodes[cur_n].simd_step = mipp::N<int8_t>();
+            {
+                auto &cur_node = nodes[cur_n];
+                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++)
+                    {
+                        c = start_c;
+                        uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
+                        uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
+                        for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
+                        {
+                        }
+                    }
+                    return c;
+                };
+                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int r = start_r; r < end_r; r++)
+                    {
+                        c = start_c;
+                        uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
+                        uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
+                        for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
+                        {
+                            if (c + cur_node.simd_step >= imgCols)
+                                break; // simd may excel end_c, but avoid simd out of img
+                        }
+                    }
 
-             nodes[cur_n].backward_rc(tileRows, imgCols, 0, 0); // calculate padding for buffer.
-                                                                // in this case just one output. If have multiple, just call this from all the outputs
-             for (auto &node : nodes)
-             {
-                 for (int i = 0; i < node.num_buf; i++)
-                     node.buffers.push_back(cv::Mat(node.buffer_rows, node.buffer_cols, node.op_type, cv::Scalar(0)));
+                    if (c < end_c)
+                        return cur_node.simple_update(start_r, end_r, c, end_c);
+                    return c;
+                };
+            }
 
-                 node.anchor_col = -node.padded_cols;
-                 node.anchor_row = tile_start_rows - node.padded_rows;
-             }
+            cur_n++;
+            nodes.resize(nodes.size() + 1);
+            nodes[cur_n].op_name = "response 1x1";
+            nodes[cur_n].op_r = 1;
+            nodes[cur_n].op_c = 1;
+            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].num_buf = 8;
+            nodes[cur_n].op_type = CV_8U;
+            nodes[cur_n].simd_step = mipp::N<int8_t>();
+            {
+                auto &cur_node = nodes[cur_n];
+                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        for (int r = start_r; r < end_r; r++)
+                        {
+                            c = start_c;
+                            uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, i);
+                            uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
+                            for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
+                            {
+                            }
+                        }
+                    }
+                    return c;
+                };
+                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *cur_node.parent;
+                    int c = start_c;
+                    for (int i = 0; i < 8; i++)
+                    {
+                        for (int r = start_r; r < end_r; r++)
+                        {
+                            c = start_c;
+                            uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, i);
+                            uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
+                            for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
+                            {
+                                if (c + cur_node.simd_step >= imgCols)
+                                    break; // simd may excel end_c, but avoid simd out of img
+                            }
+                        }
+
+                        if (c < end_c)
+                            return cur_node.simple_update(start_r, end_r, c, end_c);
+                    }
+                    return c;
+                };
+            }
+
+            cur_n++;
+            nodes.resize(nodes.size() + 1);
+            nodes[cur_n].op_name = "linearize 1x1";
+            nodes[cur_n].op_r = 1;
+            nodes[cur_n].op_c = 1;
+            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].num_buf = 0; // last buffer is output, no need to alloc
+            nodes[cur_n].op_type = CV_8U;
+            nodes[cur_n].simd_step = mipp::N<int8_t>();
+            nodes[cur_n].use_simd = false;
+            nodes[cur_n].is_cycle_buffer = false;
+            nodes[cur_n].buffers = lm_pyramid[cur_l][0]; // vector<Mat> pass by value, but Mat is by ref
+
+            const int linearize_row_step = imgCols / cur_T;
+            {
+                auto &cur_node = nodes[cur_n];
+                nodes[cur_n].simple_update = [linearize_row_step, cur_T, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    auto &parent_node = *(cur_node.parent);
+
+                    for (int i = 0; i < 8; i++)
+                    {
+                        // assume cur_T = 4, row col of the linearized response_map:
+                        // int lrs = linearize_row_step;
+                        //       0            1            2            3             lrs - 1
+                        //  0  1  2  3   0  1  2  3   0  1  2  3   0  1  2  3  ...
+                        //  4  5  6  7   4  5  6  7   4  5  6  7   4  5  6  7  ...
+                        //  8  9 10 11   8  9 10 11   8  9 10 11   8  9 10 11  ...
+                        // 12 13 14 15  12 13 14 15  12 13 14 15  12 13 14 15  ...
+                        // ----------------------------------------------------
+                        //     lrs+0        lrs+1        lrs+2       lrs+3            2*lrs - 1
+                        //  0  1  2  3   0  1  2  3   0  1  2  3   0  1  2  3  ...
+                        //  4  5  6  7   4  5  6  7   4  5  6  7   4  5  6  7  ...
+                        //  8  9 10 11   8  9 10 11   8  9 10 11   8  9 10 11  ...
+                        // 12 13 14 15  12 13 14 15  12 13 14 15  12 13 14 15  ...
+                        // ----------------------------------------------------
+                        //   2*lrs+0      2*lrs+1       2*lrs+2     2*lrs+3           3*lrs - 1
+                        //  0  1  2  3   0  1  2  3   0  1  2  3   0  1  2  3  ...
+                        //  4  5  6  7   4  5  6  7   4  5  6  7   4  5  6  7  ...
+                        //  8  9 10 11   8  9 10 11   8  9 10 11   8  9 10 11  ...
+                        // 12 13 14 15  12 13 14 15  12 13 14 15  12 13 14 15  ...
+
+                        // so :
+                        // int target_c = linearize_row_step * (r / cur_T) + c / cur_T;
+                        // int target_r = cur_T * (r % cur_T) + c % cur_T;
+
+                        // // cleaner codes, but heavy math operation in the innermost loop
+                        // int c = start_c;
+                        // for (int r = start_r; r < end_r; r++)
+                        // {
+                        //     c = start_c;
+                        //     uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c, i);
+                        //     for (; c < end_c; c++, parent_buf_ptr++)
+                        //     {
+                        //         int target_c = linearize_row_step * (r / cur_T) + c / cur_T;
+                        //         int target_r = cur_T * (r % cur_T) + c % cur_T;
+                        //         response_map[i].at<uint8_t>(target_r, target_c) = *parent_buf_ptr;
+                        //     }
+                        // }
+
+                        // more codes, but less operation int the innermost loop
+                        assert(start_c % cur_T == 0);
+                        int target_start_c = linearize_row_step * (start_r / cur_T) + start_c / cur_T;
+                        int target_start_r = cur_T * (start_r % cur_T);
+
+                        for (int tileT_r = start_r; tileT_r < start_r + cur_T; ++tileT_r)
+                        {
+                            for (int tileT_c = start_c; tileT_c < start_c + cur_T; ++tileT_c)
+                            {
+                                uint8_t *memory = &cur_node.buffers[i].at<uint8_t>(target_start_r, target_start_c);
+                                target_start_r = (target_start_r + 1) % (cur_T * cur_T);
+
+                                // Inner two loops copy every T-th pixel into the linear memory
+                                int c = 0;
+                                for (int r = tileT_r; r < end_r; r += cur_T, memory += linearize_row_step)
+                                {
+                                    uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c + tileT_c, i);
+                                    for (; c + tileT_c < end_c; c += cur_T)
+                                        *memory++ = parent_buf_ptr[c];
+                                }
+                            }
+                        }
+                    }
+                    return end_c;
+                };
+            }
+
+            nodes[cur_n].backward_rc(tileRows, imgCols, 0, 0); // calculate padding for buffer.
+            // in this case just one output. If have multiple, just call this from all the outputs
+            for (auto &node : nodes){
+                for (int i = 0; i < node.num_buf; i++)
+                    node.buffers.push_back(cv::Mat(node.buffer_rows, node.buffer_cols, node.op_type, cv::Scalar(0)));
+
+                node.anchor_col = -node.padded_cols;
+                node.anchor_row = tile_start_rows - node.padded_rows;
+            }
 
             // for tile_r tile_c
             for(int tile_r = tile_start_rows; tile_r < tile_end_rows; tile_r += tileRows){
@@ -1854,7 +1931,7 @@ int Detector::addTemplate(const Mat source, const std::string &class_id,
         Ptr<ColorGradientPyramid> qp = modality->process(source, object_mask);
 
         if(num_features > 0)
-        qp->num_features = num_features;
+            qp->num_features = num_features;
 
         for (int l = 0; l < pyramid_levels; ++l)
         {
