@@ -273,6 +273,8 @@ protected:
     int pyramid_levels;
     std::vector<int> T_at_level;
 
+    float res_map_mag_thresh = 60.0f;
+
     typedef std::vector<Template> TemplatePyramid;
     typedef std::map<std::string, std::vector<TemplatePyramid>> TemplatesMap;
     TemplatesMap class_templates;
