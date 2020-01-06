@@ -1134,6 +1134,11 @@
 		return (reg) vandq_u8((uint8x16_t) v1, (uint8x16_t) v2);
 	}
 
+	template <>
+	inline reg andb<uint8_t>(const reg v1, const reg v2) {
+		return andb<int8_t>(v1, v2);
+	}
+
 	// ---------------------------------------------------------------------------------------------------- andb (mask)
 #ifdef __aarch64__
 	template <>
@@ -1582,6 +1587,11 @@
 	template <>
 	inline msk cmpeq<int8_t>(const reg v1, const reg v2) {
 		return (msk) vceqq_s8((int8x16_t) v1, (int8x16_t) v2);
+	}
+
+	template <>
+	inline msk cmpeq<uint8_t>(const reg v1, const reg v2) {
+		return cmpeq<int8_t>(v1, v2);
 	}
 
 	// --------------------------------------------------------------------------------------------------------- cmpneq

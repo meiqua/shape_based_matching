@@ -1447,6 +1447,11 @@
 	inline reg andb<int8_t>(const reg v1, const reg v2) {
 		return _mm256_castsi256_ps(_mm256_and_si256(_mm256_castps_si256(v1), _mm256_castps_si256(v2)));
 	}
+
+	template <>
+	inline reg andb<uint8_t>(const reg v1, const reg v2) {
+		return andb<int8_t>(v1, v2);
+	}
 #endif
 
 	// ---------------------------------------------------------------------------------------------------- andb (mask)
@@ -1892,6 +1897,12 @@
 	inline msk cmpeq<int8_t>(const reg v1, const reg v2) {
 		return _mm256_cmpeq_epi8(_mm256_castps_si256(v1), _mm256_castps_si256(v2));
 	}
+
+	template <>
+	inline msk cmpeq<uint8_t>(const reg v1, const reg v2) {
+		return cmpeq<int8_t>(v1, v2);
+	}
+
 #elif !defined(__INTEL_COMPILER) && !defined(__ICL) && !defined(__ICC)
 	template <>
 	inline msk cmpeq<int64_t>(const reg v1, const reg v2) {

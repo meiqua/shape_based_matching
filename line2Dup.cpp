@@ -1049,7 +1049,6 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
     LinearMemoryPyramid lm_pyramid(pyramid_levels, std::vector<LinearMemories>(1, LinearMemories(8)));
     std::vector<Size> sizes;
 
-    const int16_t mag_thresh_l1 = int16_t(2*res_map_mag_thresh);
     const int32_t mag_thresh_l2 = int32_t(res_map_mag_thresh*res_map_mag_thresh);
 
     const int lcm_Ts = least_mul_of_Ts(T_at_level);
@@ -1152,7 +1151,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             mipp::Reg<int32_t> local_sum = int32_t(0);
                             for(int i=0; i<gauss_size; i++){
                                 mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[i]);
-                                mipp::Reg<uint8_t> src8_v((uint8_t*)parent_buf_ptr + i - gauss_size/2);
+                                mipp::Reg<uint8_t> src8_v(parent_buf_ptr + i - gauss_size/2);
                                 mipp::Reg<int16_t> src16_v(mipp::interleavelo(src8_v, zero8_v).r);
                                 mipp::Reg<int32_t> src32_v(mipp::interleavelo(src16_v, zero16_v).r);
 
@@ -1231,7 +1230,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 local_sum += gauss_coff * src32_v;
                             }
                             local_sum >>= (2*gauss_quant_bit);
-                            mipp::Reg<int32_t> zero32_v(int32_t(0));
+                            mipp::Reg<int32_t> zero32_v = int32_t(0);
                             mipp::Reg<int16_t> local_sum_int16 = mipp::pack<int32_t,int16_t>(local_sum, zero32_v);
                             local_sum_int16.store(buf_ptr);
 
@@ -1401,35 +1400,118 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             const bool use_hist3x3 = true; // if don't use it, just shift while quant
             {
                 auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simple_update = [&cur_node, &mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
                     auto &parent_node = *cur_node.parent;
+
+                    const int32_t TG1125 = std::tan(11.25/180*CV_PI)*(1<<15);
+                    const int32_t TG3375 = std::tan(33.75/180*CV_PI)*(1<<15);
+                    const int32_t TG5625 = std::tan(56.25/180*CV_PI)*(1<<15);
+                    const int32_t TG7875 = std::tan(78.75/180*CV_PI)*(1<<15);
+
                     int c = start_c;
-                    for (int r = start_r; r < end_r; r++)
-                    {
+                    for (int r = start_r; r < end_r; r++){
                         c = start_c;
                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
                         int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
                         int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
-                        for (; c < end_c; c++, buf_ptr++, parent_buf_ptr_0++, parent_buf_ptr_1++)
-                        {
+                        for (; c < end_c; c++, buf_ptr++, parent_buf_ptr_0++, parent_buf_ptr_1++){
+                            int32_t dx = int32_t(*parent_buf_ptr_0);
+                            int32_t dy = int32_t(*parent_buf_ptr_1);
+                            int32_t mag = dx*dx+dy*dy;
+                            if(mag >= mag_thresh_l2){
+                                bool is_0_pi = (dx ^ dy) < 0;
+                                int32_t x = (dx < 0) ? -dx : dx;
+                                int32_t y = ((dy < 0) ? -dy : dy)<< 15;
+                                uint8_t label =  (y<x*TG3375)?
+                                                ((y<x*TG1125)?(0):(1)):
+                                                ((y<x*TG5625)?(2):
+                                                ((y<x*TG7875)?(3):(4)));
+
+                                label = (label==0 || is_0_pi) ? label: 8-label;
+                                *buf_ptr = use_hist3x3 ? label: uint8_t(uint8_t(1)<<label);
+                            }
                         }
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simd_update = [imgCols, &cur_node, &mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
                     auto &parent_node = *cur_node.parent;
+
+                    const int32_t TG1125 = std::tan(11.25/180*CV_PI)*(1<<15);
+                    const int32_t TG3375 = std::tan(33.75/180*CV_PI)*(1<<15);
+                    const int32_t TG5625 = std::tan(56.25/180*CV_PI)*(1<<15);
+                    const int32_t TG7875 = std::tan(78.75/180*CV_PI)*(1<<15);
+
+                    mipp::Reg<int16_t> ZERO16_v = int16_t(0);
+                    mipp::Reg<int32_t> ZERO32_v = int32_t(0);
+                    mipp::Reg<int32_t> ONE32_v = int32_t(1);
+                    mipp::Reg<int32_t> TWO32_v = int32_t(2);
+                    mipp::Reg<int32_t> THREE32_v = int32_t(3);
+                    mipp::Reg<int32_t> FOUR32_v = int32_t(4);
+                    mipp::Reg<int32_t> EIGHT32_v = int32_t(8);
+                    mipp::Reg<int32_t> TG1125_v = TG1125;
+                    mipp::Reg<int32_t> TG3375_v = TG3375;
+                    mipp::Reg<int32_t> TG5625_v = TG5625;
+                    mipp::Reg<int32_t> TG7875_v = TG7875;
+
                     int c = start_c;
-                    for (int r = start_r; r < end_r; r++)
-                    {
+                    for (int r = start_r; r < end_r; r++){
                         c = start_c;
                         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
                         int16_t *parent_buf_ptr_0 = parent_node.ptr<int16_t>(r, c, 0);
                         int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
                         for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
-                             parent_buf_ptr_0 += cur_node.simd_step, parent_buf_ptr_1 += cur_node.simd_step)
-                        {
-                            if (c + cur_node.simd_step >= imgCols)
+                             parent_buf_ptr_0 += cur_node.simd_step, parent_buf_ptr_1 += cur_node.simd_step){
+                            if (c + 2*cur_node.simd_step >= imgCols)
                                 break; // simd may excel end_c, but avoid simd out of img
+
+                            // int16_t step is 2*int32_t_step
+                            for(int i=0; i<cur_node.simd_step; i+=cur_node.simd_step/2){
+                                mipp::Reg<int16_t> dx_int16(parent_buf_ptr_0 + i);
+                                mipp::Reg<int16_t> dy_int16(parent_buf_ptr_1 + i);
+                                mipp::Reg<int32_t> dx_int32 = mipp::cvt<int16_t, int32_t>(dx_int16);
+                                mipp::Reg<int32_t> dy_int32 = mipp::cvt<int16_t, int32_t>(dy_int16);
+
+                                mipp::Reg<int32_t> mag = dx_int32*dx_int32 + dy_int32*dy_int32;
+
+                                auto mag_mask = mag > mag_thresh_l2;
+                                if(!mipp::testz(mag_mask)){
+                                    mipp::Reg<int32_t> abs_dx = mipp::abs(dx_int32);
+                                    mipp::Reg<int32_t> abs_dy = mipp::abs(dx_int32) << 15;
+
+        //                            uint8_t label =  (y<x*TG3375)?
+        //                                            ((y<x*TG1125)?(0):(1)):
+        //                                            ((y<x*TG5625)?(2):
+        //                                            ((y<x*TG7875)?(3):(4)));
+                                    mipp::Reg<int32_t> label_v =
+                                                mipp::blend(
+                                                mipp::blend(ZERO32_v,
+                                                            ONE32_v    , abs_dy<abs_dx*TG1125_v),
+                                                mipp::blend(TWO32_v,
+                                                mipp::blend(THREE32_v,
+                                                            FOUR32_v
+                                                                       , abs_dy<abs_dx*TG7875_v)
+                                                                       , abs_dy<abs_dx*TG5625_v)
+                                                                       , abs_dy<abs_dx*TG3375_v);
+                                    label_v = mipp::blend(label_v, EIGHT32_v-label_v,
+                                                          ((label_v == ZERO32_v) | ((abs_dx^abs_dy)<0)));
+
+                                    label_v = mipp::blend(label_v, ZERO32_v, mag_mask);
+
+                                    // range 0-7, so no worry for signed int while pack
+                                    mipp::Reg<int16_t> label16_v = mipp::pack<int32_t, int16_t>(label_v, ZERO32_v);
+                                    mipp::Reg<int8_t> label8_v = mipp::pack<int16_t, int8_t>(label16_v, ZERO16_v);
+
+                                    int8_t temp_result[mipp::N<int8_t>()] = {0};
+                                    label8_v.store(temp_result);
+                                    for(int j=0; j<cur_node.simd_step/2; j++){
+                                        uint8_t cur_offset = uint8_t(temp_result[j]);
+                                        *(buf_ptr+i+j) = use_hist3x3 ? cur_offset: uint8_t(uint8_t(1)<<cur_offset);
+                                    }
+                                }
+                            }
+
+
                         }
                     }
 
@@ -1483,7 +1565,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
                                 // Only accept the quantization if majority of pixels in the patch agree
                                 static const int NEIGHBOR_THRESHOLD = 5;
-                                if (max_votes >= NEIGHBOR_THRESHOLD) *buf_ptr = uint8_t(1 << index);
+                                if (max_votes >= NEIGHBOR_THRESHOLD) *buf_ptr = uint8_t(uint8_t(1) << index);
                             }
                         }
                         return c;
@@ -1549,10 +1631,10 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             if (c + cur_node.simd_step >= imgCols)
                                 break; // simd may excel end_c, but avoid simd out of img
 
-                            mipp::Reg<uint8_t> local_sum = 0;
+                            mipp::Reg<uint8_t> local_sum = uint8_t(0);
                             for(int i=-cur_node.op_c/2; i<=cur_node.op_c/2; i++){
                                 mipp::Reg<uint8_t> src_v(parent_buf_ptr+i);
-                                local_sum = = mipp::orb(src_v, local_sum);
+                                local_sum = mipp::orb(src_v, local_sum);
                             }
                             local_sum.store(buf_ptr);
                         }
@@ -1607,10 +1689,10 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             if (c + cur_node.simd_step >= imgCols)
                                 break; // simd may excel end_c, but avoid simd out of img
 
-                            mipp::Reg<uint8_t> local_sum = 0;
+                            mipp::Reg<uint8_t> local_sum = uint8_t(0);
                             for(int i=-cur_node.op_c/2*col_step; i<=cur_node.op_c/2*col_step; i+=col_step){
                                 mipp::Reg<uint8_t> src_v(parent_buf_ptr+i);
-                                local_sum = = mipp::orb(src_v, local_sum);
+                                local_sum = mipp::orb(src_v, local_sum);
                             }
                             local_sum.store(buf_ptr);
                         }
@@ -1632,38 +1714,62 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             nodes[cur_n].op_type = CV_8U;
             nodes[cur_n].simd_step = mipp::N<int8_t>();
             {
+                const uint8_t scores[2] = {4, 1};
+                const uint8_t hit_mask[8] = { 1,   2, 4,  8,  16, 32, 64,  128};
+                const uint8_t side_mask[8] = {131, 5, 10, 20, 40, 80, 160, 65};
+
                 auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simple_update = [&cur_node, &hit_mask, &side_mask, &scores](int start_r, int end_r, int start_c, int end_c) {
                     auto &parent_node = *cur_node.parent;
                     int c = start_c;
-                    for (int i = 0; i < 8; i++)
-                    {
-                        for (int r = start_r; r < end_r; r++)
-                        {
+                    for (int i = 0; i < 8; i++){
+                        for (int r = start_r; r < end_r; r++){
                             c = start_c;
                             uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, i);
                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                            for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++)
-                            {
+                            for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
+                                uchar s0 = (hit_mask[i] & *parent_buf_ptr) ? scores[0] : 0;
+                                uchar s1 = (side_mask[i] & *parent_buf_ptr) ? scores[1] : 0;
+                                *buf_ptr = std::max(s0, s1);
                             }
                         }
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simd_update = [imgCols, &cur_node, &hit_mask, &side_mask, &scores](int start_r, int end_r, int start_c, int end_c) {
                     auto &parent_node = *cur_node.parent;
+
+                    mipp::Reg<uint8_t> const_score0 = scores[0];
+                    mipp::Reg<uint8_t> const_score1 = scores[0];
+                    mipp::Reg<uint8_t> zero8_v = uint8_t(0);
                     int c = start_c;
-                    for (int i = 0; i < 8; i++)
-                    {
-                        for (int r = start_r; r < end_r; r++)
-                        {
+                    for (int i = 0; i < 8; i++){
+                        mipp::Reg<uint8_t> hit_mask_v = hit_mask[i];
+                        mipp::Reg<uint8_t> side_mask_v = side_mask[i];
+                        for (int r = start_r; r < end_r; r++){
                             c = start_c;
                             uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, i);
                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                            for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
-                            {
+                            for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
+                                 parent_buf_ptr += cur_node.simd_step){
                                 if (c + cur_node.simd_step >= imgCols)
                                     break; // simd may excel end_c, but avoid simd out of img
+
+                                mipp::Reg<uint8_t> src_v(parent_buf_ptr);
+                                auto s0 = mipp::blend(zero8_v, const_score0, (hit_mask_v & src_v) == zero8_v);
+                                auto s1 = mipp::blend(zero8_v, const_score1, (side_mask_v & src_v) == zero8_v);
+#ifdef has_max_int8_t
+                                mipp::Reg<uint8_t> result = mipp::max(s0, s1);
+                                result.store(buf_ptr);
+#else
+                                uint8_t s0_buffer[mipp::N<uint8_t>()] = {0};
+                                uint8_t s1_buffer[mipp::N<uint8_t>()] = {0};
+                                s0.store(s0_buffer);
+                                s1.store(s1_buffer);
+                                for(int i=0; i<cur_node.simd_step; i++){
+                                    *(buf_ptr+i) = std::max(s0_buffer[i], s1_buffer[i]);
+                                }
+#endif
                             }
                         }
 
@@ -1806,10 +1912,12 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
                 // roll buffer
                 for (int cur_node = 0; cur_node < nodes.size(); cur_node++){
-                    if (!nodes[cur_node].is_cycle_buffer)
-                        continue;
+
                     nodes[cur_node].prepared_col = 0;
                     nodes[cur_node].prepared_row = end_r + nodes[cur_node].padded_rows;
+                    // non-cycle byffer just read from src rather than ptr
+//                    if (!nodes[cur_node].is_cycle_buffer)
+//                        continue;
                     nodes[cur_node].zero_row = (end_r - nodes[cur_node].padded_rows - nodes[cur_node].anchor_row + nodes[cur_node].zero_row) % nodes[cur_node].buffer_rows;
                     nodes[cur_node].anchor_row = end_r - nodes[cur_node].padded_rows;
                 }
