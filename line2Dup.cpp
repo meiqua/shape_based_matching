@@ -1061,7 +1061,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
     // gaussian coff quantization
     const int gauss_size = 5;
-    const int gauss_quant_bit = 10; // cvt to int32
+    const int gauss_quant_bit = 8;
     cv::Mat double_gauss = cv::getGaussianKernel(gauss_size, 0, CV_64F);
     int32_t gauss_knl_uint32[gauss_size] = {0};
     for(int i=0; i<gauss_size; i++){
@@ -1123,9 +1123,10 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             uint8_t *parent_buf_ptr = &src.at<uint8_t>(r, c);
                             for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
 
-                                int32_t local_sum = 0;
-                                for(int i=0; i<gauss_size; i++){
-                                    local_sum += int32_t(*(parent_buf_ptr - gauss_size/2 + i)) * gauss_knl_uint32[i];
+                                int32_t local_sum = gauss_knl_uint32[gauss_size/2]*int32_t(*(parent_buf_ptr));
+                                int gauss_knl_idx = gauss_size/2 + 1;
+                                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
+                                    local_sum += int32_t(*(parent_buf_ptr + i) + *(parent_buf_ptr - i)) * gauss_knl_uint32[gauss_knl_idx];
                                 }
                                 *buf_ptr = local_sum;
                             }
@@ -1133,15 +1134,14 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             int16_t *parent_buf_ptr = &src.at<int16_t>(r, c);
                             for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
 
-                                int32_t local_sum = 0;
-                                for(int i=0; i<gauss_size; i++){
-                                    local_sum += int32_t(*(parent_buf_ptr - gauss_size/2 + i)) * gauss_knl_uint32[i];
+                                int32_t local_sum = gauss_knl_uint32[gauss_size/2]*int32_t(*(parent_buf_ptr));
+                                int gauss_knl_idx = gauss_size/2 + 1;
+                                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
+                                    local_sum += int32_t(*(parent_buf_ptr + i) + *(parent_buf_ptr - i)) * gauss_knl_uint32[gauss_knl_idx];
                                 }
                                 *buf_ptr = local_sum;
                             }
                         }
-
-
                     }
                     return c;
                 };
@@ -1166,14 +1166,22 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 if (c + 4*cur_node.simd_step >= imgCols - gauss_size/2)
                                     break; // simd may excel end_c, but avoid simd out of img, *4 because int32 = 4*8
 
-                                mipp::Reg<int32_t> local_sum = int32_t(0);
-                                for(int i=0; i<gauss_size; i++){
-                                    mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[i]);
-                                    mipp::Reg<uint8_t> src8_v(parent_buf_ptr + i - gauss_size/2);
-                                    mipp::Reg<int16_t> src16_v(mipp::interleavelo(src8_v, zero8_v).r);
-                                    mipp::Reg<int32_t> src32_v(mipp::interleavelo(src16_v, zero16_v).r);
+                                mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
+                                mipp::Reg<uint8_t> src8_v0(parent_buf_ptr);
+                                mipp::Reg<int16_t> src16_v0(mipp::interleavelo(src8_v0, zero8_v).r);
+                                mipp::Reg<int32_t> src32_v0(mipp::interleavelo(src16_v0, zero16_v).r);
+                                mipp::Reg<int32_t> local_sum = gauss_coff0*src32_v0;
+                                int gauss_knl_idx = gauss_size/2 + 1;
+                                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
+                                    mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[gauss_knl_idx]);
+                                    mipp::Reg<uint8_t> src8_v1(parent_buf_ptr + i);
+                                    mipp::Reg<int16_t> src16_v1(mipp::interleavelo(src8_v1, zero8_v).r);
+                                    mipp::Reg<int32_t> src32_v1(mipp::interleavelo(src16_v1, zero16_v).r);
 
-                                    local_sum += gauss_coff * src32_v;
+                                    mipp::Reg<uint8_t> src8_v2(parent_buf_ptr - i);
+                                    mipp::Reg<int16_t> src16_v2(mipp::interleavelo(src8_v2, zero8_v).r);
+                                    mipp::Reg<int32_t> src32_v2(mipp::interleavelo(src16_v2, zero16_v).r);
+                                    local_sum += gauss_coff * (src32_v1 + src32_v2);
                                 }
                                 local_sum.store(buf_ptr);
                             }
@@ -1184,13 +1192,19 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 if (c + 2*cur_node.simd_step >= imgCols - gauss_size/2)
                                     break; // simd may excel end_c, but avoid simd out of img, *4 because int32 = 4*8
 
-                                mipp::Reg<int32_t> local_sum = int32_t(0);
-                                for(int i=0; i<gauss_size; i++){
-                                    mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[i]);
-                                    mipp::Reg<int16_t> src16_v(parent_buf_ptr + i - gauss_size/2);
-                                    mipp::Reg<int32_t> src32_v(mipp::interleavelo(src16_v, zero16_v).r);
+                                mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
+                                mipp::Reg<int16_t> src16_v0(parent_buf_ptr);
+                                mipp::Reg<int32_t> src32_v0(mipp::interleavelo(src16_v0, zero16_v).r);
+                                mipp::Reg<int32_t> local_sum = gauss_coff0*src32_v0;
+                                int gauss_knl_idx = gauss_size/2 + 1;
+                                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
+                                    mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[gauss_knl_idx]);
+                                    mipp::Reg<int16_t> src16_v1(parent_buf_ptr + i);
+                                    mipp::Reg<int32_t> src32_v1(mipp::interleavelo(src16_v1, zero16_v).r);
 
-                                    local_sum += gauss_coff * src32_v;
+                                    mipp::Reg<int16_t> src16_v2(parent_buf_ptr - i);
+                                    mipp::Reg<int32_t> src32_v2(mipp::interleavelo(src16_v2, zero16_v).r);
+                                    local_sum += gauss_coff * (src32_v + src32_v2);
                                 }
                                 local_sum.store(buf_ptr);
                             }                            
@@ -1223,10 +1237,12 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         int32_t *parent_buf_ptr = parent_node.ptr<int32_t>(r, c);
 
                         for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
-                            int32_t local_sum = 0;
-                            int offset_r =  - col_step * (gauss_size/2);
-                            for(int i=0; i<gauss_size; i++, offset_r+=col_step){
-                                local_sum += gauss_knl_uint32[i] * (*(parent_buf_ptr + offset_r));
+                            
+                            int offset_r =  0;
+                            int32_t local_sum = gauss_knl_uint32[gauss_size/2] * (*(parent_buf_ptr));
+                            int gauss_knl_idx = gauss_size/2 + 1;
+                            for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++, offset_r+=col_step){
+                                local_sum += gauss_knl_uint32[gauss_knl_idx] * (*(parent_buf_ptr + offset_r) + *(parent_buf_ptr - offset_r));
                             }
                             *buf_ptr = int16_t(local_sum >> (2*gauss_quant_bit));
                         }
@@ -1247,13 +1263,17 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             if (c + 2*cur_node.simd_step >= imgCols)
                                 break; // simd may excel end_c, but avoid simd out of img
 
-                            int offset_r =  - col_step * (gauss_size/2);
-                            mipp::Reg<int32_t> local_sum = int32_t(0);
-                            for(int i=0; i<gauss_size; i++, offset_r+=col_step){
-                                mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[i]);
-                                mipp::Reg<int32_t> src32_v(parent_buf_ptr + offset_r);
+                            int offset_r =  0;
+                            mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
+                            mipp::Reg<int32_t> src32_v0(parent_buf_ptr);
+                            mipp::Reg<int32_t> local_sum = gauss_coff0 * src32_v0;
+                            int gauss_knl_idx = gauss_size/2 + 1;
+                            for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++, offset_r+=col_step){
+                                mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[gauss_knl_idx]);
+                                mipp::Reg<int32_t> src32_v1(parent_buf_ptr + offset_r);
+                                mipp::Reg<int32_t> src32_v2(parent_buf_ptr - offset_r);
 
-                                local_sum += gauss_coff * src32_v;
+                                local_sum += gauss_coff * (src32_v1 + src32_v2);
                             }
                             local_sum >>= (2*gauss_quant_bit);
                             mipp::Reg<int32_t> zero32_v = int32_t(0);
