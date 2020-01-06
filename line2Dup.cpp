@@ -1792,14 +1792,14 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 nodes[cur_n].simple_update = [&cur_node, &hit_mask, &side_mask, &scores](int start_r, int end_r, int start_c, int end_c) {
                     auto &parent_node = *cur_node.parent;
                     int c = start_c;
-                    for (int i = 0; i < 8; i++){
+                    for (int ori = 0; ori < 8; ori++){
                         for (int r = start_r; r < end_r; r++){
                             c = start_c;
-                            uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, i);
+                            uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, ori);
                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
                             for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
-                                uchar s0 = (hit_mask[i] & *parent_buf_ptr) ? scores[0] : 0;
-                                uchar s1 = (side_mask[i] & *parent_buf_ptr) ? scores[1] : 0;
+                                uchar s0 = (hit_mask[ori] & *parent_buf_ptr) ? scores[0] : 0;
+                                uchar s1 = (side_mask[ori] & *parent_buf_ptr) ? scores[1] : 0;
                                 *buf_ptr = std::max(s0, s1);
                             }
                         }
@@ -1810,15 +1810,15 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     auto &parent_node = *cur_node.parent;
 
                     mipp::Reg<uint8_t> const_score0 = scores[0];
-                    mipp::Reg<uint8_t> const_score1 = scores[0];
+                    mipp::Reg<uint8_t> const_score1 = scores[1];
                     mipp::Reg<uint8_t> zero8_v = uint8_t(0);
                     int c = start_c;
-                    for (int i = 0; i < 8; i++){
-                        mipp::Reg<uint8_t> hit_mask_v = hit_mask[i];
-                        mipp::Reg<uint8_t> side_mask_v = side_mask[i];
+                    for (int ori = 0; ori < 8; ori++){
+                        mipp::Reg<uint8_t> hit_mask_v = hit_mask[ori];
+                        mipp::Reg<uint8_t> side_mask_v = side_mask[ori];
                         for (int r = start_r; r < end_r; r++){
                             c = start_c;
-                            uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, i);
+                            uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, ori);
                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
                             for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
                                  parent_buf_ptr += cur_node.simd_step){
