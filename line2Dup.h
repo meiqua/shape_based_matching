@@ -180,14 +180,15 @@ struct FilterNode
 
     int prepared_row = 0; // where have been calculated in full img
     int prepared_col = 0;
-    FilterNode *parent = nullptr;
+    int parent = -1;
 
     std::string op_name;
     int op_type = CV_16U;
     int op_r, op_c;
 
     int simd_step = mipp::N<int16_t>();
-    bool use_simd = true;
+    bool use_simd = false;
+//    bool use_simd = true;
 
     template <class T>
     T *ptr(int r, int c, int buf_idx = 0)
@@ -201,7 +202,7 @@ struct FilterNode
     std::function<int(int, int, int, int)> simple_update;  // update start_r end_r start_c end_c
     std::function<int(int, int, int, int)> simd_update;
 
-    void backward_rc(int rows, int cols, int cur_padded_rows, int cur_padded_cols) // calculate paddings
+    void backward_rc(std::vector<FilterNode>& nodes, int rows, int cols, int cur_padded_rows, int cur_padded_cols) // calculate paddings
     {
         if (rows > buffer_rows)
         {
@@ -222,8 +223,8 @@ struct FilterNode
             cols += op_c - 1;
         }
 
-        if (parent != nullptr)
-            parent->backward_rc(rows, cols, cur_padded_rows, cur_padded_cols);
+        if (parent >= 0)
+            nodes[parent].backward_rc(nodes, rows, cols, cur_padded_rows, cur_padded_cols);
     }
 };
 

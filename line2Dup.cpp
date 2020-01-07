@@ -1042,6 +1042,8 @@ static int least_mul_of_Ts(const std::vector<int>& T_at_level){
 
 std::vector<Match> Detector::match(Mat source, float threshold, const std::vector<string> &class_ids, const Mat masks) const
 {
+    assert(source.channels() == 1 && "only gray img now");
+
     std::vector<Match> matches;
 
     // lm_pyramid sizes
@@ -1081,7 +1083,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         if(cur_l == 0) src = source;
         else src = pyr_src;
 
-        if(need_pyr) pyr_src = cv::Mat(imgRows/2, imgCols/2, CV_16UC1, cv::Scalar(0));
+        if(need_pyr) pyr_src = cv::Mat(imgRows/2, imgCols/2, CV_16U, cv::Scalar(0));
 
         const int cur_T = T_at_level[cur_l];
         assert(cur_T % 2 == 0);
@@ -1098,18 +1100,16 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
             // assign nodes, put it here because all threads have its own buffer
             int cur_n = 0;
-            nodes.resize(nodes.size() + 1);
+            nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "gx 1xgauss_size";
             nodes[cur_n].op_r = 1;
             nodes[cur_n].op_c = gauss_size;
             nodes[cur_n].op_type = CV_32S;
             nodes[cur_n].simd_step = mipp::N<int32_t>();
-            if(!need_pyr) nodes[cur_n].num_buf = 0;
             {
-                auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&src, &gauss_knl_uint32, &cur_node, imgCols, &cur_l]
+                nodes[cur_n].simple_update = [&nodes, cur_n, &src, gauss_knl_uint32, imgCols]
                         (int start_r, int end_r, int start_c, int end_c) {
-
+                    auto &cur_node = nodes[cur_n];
                     // src has no padding, so update c should be padded
                     if(start_c < gauss_size/2) start_c = gauss_size/2;
                     if(end_c >= imgCols - gauss_size/2) end_c = imgCols - gauss_size/2;
@@ -1119,35 +1119,39 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         c = start_c;
                         int32_t *buf_ptr = cur_node.ptr<int32_t>(r, c);
 
-                        if(cur_l == 0){  // src is uint8
-                            uint8_t *parent_buf_ptr = &src.at<uint8_t>(r, c);
+                        if(src.type() == CV_16U){
+                            const int16_t *parent_buf_ptr = &src.at<int16_t>(r, c);
                             for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
 
                                 int32_t local_sum = gauss_knl_uint32[gauss_size/2]*int32_t(*(parent_buf_ptr));
                                 int gauss_knl_idx = gauss_size/2 + 1;
                                 for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
-                                    local_sum += int32_t(*(parent_buf_ptr + i) + *(parent_buf_ptr - i)) * gauss_knl_uint32[gauss_knl_idx];
+                                    local_sum += (int32_t(*(parent_buf_ptr + i)) +
+                                                  int32_t(*(parent_buf_ptr - i))) * gauss_knl_uint32[gauss_knl_idx];
                                 }
                                 *buf_ptr = local_sum;
                             }
-                        }else{  // src is int16
-                            int16_t *parent_buf_ptr = &src.at<int16_t>(r, c);
+                        }else if(src.type() == CV_8U){
+                            const uint8_t *parent_buf_ptr = &src.at<uint8_t>(r, c);
                             for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
 
                                 int32_t local_sum = gauss_knl_uint32[gauss_size/2]*int32_t(*(parent_buf_ptr));
                                 int gauss_knl_idx = gauss_size/2 + 1;
                                 for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
-                                    local_sum += int32_t(*(parent_buf_ptr + i) + *(parent_buf_ptr - i)) * gauss_knl_uint32[gauss_knl_idx];
+                                    local_sum += (int32_t(*(parent_buf_ptr + i)) +
+                                                  int32_t(*(parent_buf_ptr - i))) * gauss_knl_uint32[gauss_knl_idx];
                                 }
                                 *buf_ptr = local_sum;
                             }
+                        }else{
+                            CV_Error(Error::StsBadArg, "Invalid type of src");
                         }
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&src, imgCols, &gauss_knl_uint32, &cur_node, &cur_l]
+                nodes[cur_n].simd_update = [&nodes, cur_n, &src, imgCols, gauss_knl_uint32]
                         (int start_r, int end_r, int start_c, int end_c) {
-
+                    auto &cur_node = nodes[cur_n];
                     // src has no padding, so update c should be padded
                     if(start_c < gauss_size/2) start_c = gauss_size/2;
                     if(end_c >= imgCols - gauss_size/2) end_c = imgCols - gauss_size/2;
@@ -1159,8 +1163,31 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         c = start_c;
                         int32_t *buf_ptr = cur_node.ptr<int32_t>(r, c);
 
-                        if(cur_l == 0){
-                            uint8_t *parent_buf_ptr = &src.at<uint8_t>(r, c);
+                        if(src.type() == CV_16U){
+                            const int16_t *parent_buf_ptr = &src.at<int16_t>(r, c);
+                            for (; c < end_c; c += cur_node.simd_step,
+                                buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
+                                if (c + 4*cur_node.simd_step >= imgCols - gauss_size/2)
+                                    break; // simd may excel end_c, but avoid simd out of img, *4 because int32 = 4*8
+
+                                mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
+                                mipp::Reg<int16_t> src16_v0(parent_buf_ptr);
+                                mipp::Reg<int32_t> src32_v0(mipp::interleavelo(src16_v0, zero16_v).r);
+                                mipp::Reg<int32_t> local_sum = gauss_coff0*src32_v0;
+                                int gauss_knl_idx = gauss_size/2 + 1;
+                                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
+                                    mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[gauss_knl_idx]);
+                                    mipp::Reg<int16_t> src16_v1(parent_buf_ptr + i);
+                                    mipp::Reg<int32_t> src32_v1(mipp::interleavelo(src16_v1, zero16_v).r);
+
+                                    mipp::Reg<int16_t> src16_v2(parent_buf_ptr - i);
+                                    mipp::Reg<int32_t> src32_v2(mipp::interleavelo(src16_v2, zero16_v).r);
+                                    local_sum += gauss_coff * (src32_v1 + src32_v2);
+                                }
+                                local_sum.store(buf_ptr);
+                            }
+                        }else if(src.type() == CV_8U){
+                            const uint8_t *parent_buf_ptr = &src.at<uint8_t>(r, c);
                             for (; c < end_c; c += cur_node.simd_step,
                                 buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
                                 if (c + 4*cur_node.simd_step >= imgCols - gauss_size/2)
@@ -1186,31 +1213,9 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 local_sum.store(buf_ptr);
                             }
                         }else{
-                            int16_t *parent_buf_ptr = &src.at<int16_t>(r, c);
-                            for (; c < end_c; c += cur_node.simd_step,
-                                buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
-                                if (c + 2*cur_node.simd_step >= imgCols - gauss_size/2)
-                                    break; // simd may excel end_c, but avoid simd out of img, *4 because int32 = 4*8
-
-                                mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
-                                mipp::Reg<int16_t> src16_v0(parent_buf_ptr);
-                                mipp::Reg<int32_t> src32_v0(mipp::interleavelo(src16_v0, zero16_v).r);
-                                mipp::Reg<int32_t> local_sum = gauss_coff0*src32_v0;
-                                int gauss_knl_idx = gauss_size/2 + 1;
-                                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
-                                    mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[gauss_knl_idx]);
-                                    mipp::Reg<int16_t> src16_v1(parent_buf_ptr + i);
-                                    mipp::Reg<int32_t> src32_v1(mipp::interleavelo(src16_v1, zero16_v).r);
-
-                                    mipp::Reg<int16_t> src16_v2(parent_buf_ptr - i);
-                                    mipp::Reg<int32_t> src32_v2(mipp::interleavelo(src16_v2, zero16_v).r);
-                                    local_sum += gauss_coff * (src32_v + src32_v2);
-                                }
-                                local_sum.store(buf_ptr);
-                            }                            
+                            CV_Error(Error::StsBadArg, "Invalid type of src");
                         }
                     }
-
                     if (c < end_c)
                         return cur_node.simple_update(start_r, end_r, c, end_c);
                     return c;
@@ -1218,17 +1223,16 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             }
 
             cur_n++;
-            nodes.resize(nodes.size() + 1);
+            nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "gy gauss_sizex1";
             nodes[cur_n].op_r = gauss_size;
             nodes[cur_n].op_c = 1;
-            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].simd_step = mipp::N<int32_t>();  // type is 16U, but step is 32
-            if(!need_pyr) nodes[cur_n].num_buf = 0;
             {
-                auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&cur_node, &gauss_knl_uint32](int start_r, int end_r, int start_c, int end_c){
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simple_update = [&nodes, cur_n, gauss_knl_uint32, need_pyr, &pyr_src](int start_r, int end_r, int start_c, int end_c){
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
                     int col_step = parent_node.buffer_cols;
                     int c = start_c;
                     for (int r = start_r; r < end_r; r++){
@@ -1245,43 +1249,85 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 local_sum += gauss_knl_uint32[gauss_knl_idx] * (*(parent_buf_ptr + offset_r) + *(parent_buf_ptr - offset_r));
                             }
                             *buf_ptr = int16_t(local_sum >> (2*gauss_quant_bit));
+
+                            if(need_pyr){
+                                if(r%2==0 && c%2==0){
+                                    pyr_src.at<int16_t>(r/2, c/2) = *buf_ptr;
+                                }
+                            }
                         }
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [imgCols, &cur_node, &gauss_knl_uint32](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols, gauss_knl_uint32, need_pyr, &pyr_src](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
                     int col_step = parent_node.buffer_cols;
                     int c = start_c;
+
+                    mipp::Reg<int16_t> zero16_v = int16_t(0);
+                    mipp::Reg<int32_t> zero32_v = int32_t(0);
                     for (int r = start_r; r < end_r; r++){
                         c = start_c;
                         int16_t *buf_ptr = cur_node.ptr<int16_t>(r, c);
                         int32_t *parent_buf_ptr = parent_node.ptr<int32_t>(r, c);
 
-                        for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
-                             parent_buf_ptr += cur_node.simd_step){
-                            if (c + 2*cur_node.simd_step >= imgCols)
+                        bool is_even_row = r%2 == 0;
+                        int is_not_even_col = int(c%2 == 1);
+                        int16_t* pyr_src_ptr = &pyr_src.at<int16_t>(r/2, c/2);
+
+                        // once for two simd step, because we need to fill the pyrdown lane
+                        for (; c < end_c; c += 2*cur_node.simd_step, buf_ptr += 2*cur_node.simd_step,
+                             parent_buf_ptr += 2*cur_node.simd_step, pyr_src_ptr += cur_node.simd_step){
+                            if (c + 4*cur_node.simd_step >= imgCols)
                                 break; // simd may excel end_c, but avoid simd out of img
 
-                            int offset_r =  0;
-                            mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
-                            mipp::Reg<int32_t> src32_v0(parent_buf_ptr);
-                            mipp::Reg<int32_t> local_sum = gauss_coff0 * src32_v0;
-                            int gauss_knl_idx = gauss_size/2 + 1;
-                            for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++, offset_r+=col_step){
-                                mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[gauss_knl_idx]);
-                                mipp::Reg<int32_t> src32_v1(parent_buf_ptr + offset_r);
-                                mipp::Reg<int32_t> src32_v2(parent_buf_ptr - offset_r);
+                            int c_stride = 0;
+                            for(int c_step = 0; c_step < 2; c_step++, c_stride += cur_node.simd_step){
+                                int offset_r =  0;
+                                mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
+                                mipp::Reg<int32_t> src32_v0(parent_buf_ptr + c_stride);
+                                mipp::Reg<int32_t> local_sum = gauss_coff0 * src32_v0;
+                                int gauss_knl_idx = gauss_size/2 + 1;
+                                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++, offset_r+=col_step){
+                                    mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[gauss_knl_idx]);
+                                    mipp::Reg<int32_t> src32_v1(parent_buf_ptr + c_stride + offset_r);
+                                    mipp::Reg<int32_t> src32_v2(parent_buf_ptr + c_stride - offset_r);
 
-                                local_sum += gauss_coff * (src32_v1 + src32_v2);
+                                    local_sum += gauss_coff * (src32_v1 + src32_v2);
+                                }
+                                local_sum >>= (2*gauss_quant_bit);
+
+                                // two lanes may save one pack?
+                                mipp::Reg<int16_t> local_sum_int16 = mipp::pack<int32_t,int16_t>(local_sum, zero32_v);
+                                local_sum_int16.store(buf_ptr + c_stride);
                             }
-                            local_sum >>= (2*gauss_quant_bit);
-                            mipp::Reg<int32_t> zero32_v = int32_t(0);
-                            mipp::Reg<int16_t> local_sum_int16 = mipp::pack<int32_t,int16_t>(local_sum, zero32_v);
-                            local_sum_int16.store(buf_ptr);
+                            if(need_pyr && is_even_row){
+
+                                // simd version may have too many overhead
+                                const bool simd_pyr_version = false;
+                                if(simd_pyr_version){
+                                    mipp::Reg<int32_t> pyrdown_src((int32_t*)buf_ptr);
+                                    if(is_not_even_col){
+                                        pyrdown_src >>= 16; // move to low part
+                                    }else{
+                                        pyrdown_src <<= 16; // make high part zero
+                                        pyrdown_src >>= 16; // move to low part
+                                    }
+
+                                    // two lanes may save one pack?
+                                    mipp::Reg<int16_t> result = mipp::pack<int32_t, int16_t>(pyrdown_src, zero32_v);
+                                    result.store(pyr_src_ptr+is_not_even_col);
+                                }else{
+                                    int i=0;
+                                    int j=0;
+                                    for(; i<2*cur_node.simd_step; i+=2, j++){
+                                        *(pyr_src_ptr + j + is_not_even_col) = *(buf_ptr + is_not_even_col + i);
+                                    }
+                                }
+                            }
                         }
                     }
-
                     if (c < end_c)
                         return cur_node.simple_update(start_r, end_r, c, end_c);
                     return c;
@@ -1289,84 +1335,45 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             }
 
             cur_n++;
-            nodes.resize(nodes.size() + 1);
+            nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "sxx syx 1x3";
             nodes[cur_n].op_r = 1;
             nodes[cur_n].op_c = 3;
-            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].num_buf = 2;
             {
-                auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [imgCols, &cur_node, &pyr_src, &need_pyr, &src, &cur_l](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
-
-                    if(cur_l > 0){
-                        // src has no padding, so update c should be padded
-                        if(start_c < 1) start_c = 1;
-                        if(end_c >= imgCols - 1) end_c = imgCols - 1;
-                    }
+                nodes[cur_n].simple_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
 
                     int c = start_c;
                     for (int r = start_r; r < end_r; r++){
                         c = start_c;
                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
                         int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
-                        int16_t *parent_buf_ptr;
-                        int16_t *node_for_pyr_ptr = parent_node.ptr<int16_t>(r, c);
-                        if(cur_l == 0){
-                            parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
-                        }else{
-                            parent_buf_ptr = &src.at<int16_t>(r, c);
-                            
-                        }
-
-                        int16_t* pyr_src_ptr = &pyr_src.at<int16_t>(r/2, c/2);
-                        bool even_row = r%2 == 0;
-
-                        for (; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr++, node_for_pyr_ptr++){
+                        int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);;
+                        for (; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr++){
                             // sxx  -1 0 1
                             *buf_ptr_0 = -*(parent_buf_ptr-1) + *(parent_buf_ptr+1);
-
                             // sxy   1 2 1
                             *buf_ptr_1 = *(parent_buf_ptr-1) + 2*(*parent_buf_ptr) + *(parent_buf_ptr+1);
-
-                            if(need_pyr && even_row){
-                                if(c%2 == 0){
-                                    *pyr_src_ptr = int16_t(*node_for_pyr_ptr);
-                                    pyr_src_ptr++;
-                                }
-                            }
                         }
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [imgCols, &cur_node, &pyr_src, &need_pyr, &src, &cur_l](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
-
-                    if(cur_l > 0){
-                        // src has no padding, so update c should be padded
-                        if(start_c < 1) start_c = 1;
-                        if(end_c >= imgCols - 1) end_c = imgCols - 1;
-                    }
+                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
 
                     int c = start_c;
                     for (int r = start_r; r < end_r; r++){
                         c = start_c;
                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
                         int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
-                        int16_t *parent_buf_ptr;
-                        int16_t *node_for_pyr_ptr = parent_node.ptr<int16_t>(r, c);
-                        if(cur_l == 0){
-                            parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
-                        }else{
-                            parent_buf_ptr = &src.at<int16_t>(r, c);
-                        }
-
-                        int16_t* pyr_src_ptr = &pyr_src.at<int16_t>(r/2, c/2);
-                        bool even_row = r%2 == 0;
+                        int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);;
 
                         for (; c < end_c; c += cur_node.simd_step, buf_ptr_0 += cur_node.simd_step,
-                             buf_ptr_1 += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step, node_for_pyr_ptr+= cur_node.simd_step){
+                             buf_ptr_1 += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
                             if (c + cur_node.simd_step >= imgCols)
                                 break; // simd may excel end_c, but avoid simd out of img
 
@@ -1384,18 +1391,6 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
                             sxx.store(buf_ptr_0);
                             syx.store(buf_ptr_1);
-
-                            if(need_pyr && even_row){
-                                if(c%2 == 0){
-                                    for(int i=0; i<cur_node.simd_step; i+=2, pyr_src_ptr++){
-                                        *pyr_src_ptr = *(node_for_pyr_ptr+i);
-                                    }
-                                }else{
-                                    for(int i=1; i<cur_node.simd_step; i+=2, pyr_src_ptr++){
-                                        *pyr_src_ptr = *(node_for_pyr_ptr+i);
-                                    }
-                                }
-                            }
                         }
                     }
 
@@ -1407,16 +1402,16 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             }
 
             cur_n++;
-            nodes.resize(nodes.size() + 1);
+            nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "sxy syy 3x1";
             nodes[cur_n].op_r = 3;
             nodes[cur_n].op_c = 1;
-            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].num_buf = 2;
             {
-                auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simple_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
                     int c = start_c;
                     const int col_step = cur_node.buffer_cols;
                     for (int r = start_r; r < end_r; r++){
@@ -1436,8 +1431,9 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
                     int c = start_c;
                     const int col_step = cur_node.buffer_cols;
                     for (int r = start_r; r < end_r; r++){
@@ -1477,19 +1473,19 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             }
 
             cur_n++;
-            nodes.resize(nodes.size() + 1);
+            nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "mag phase quant 1x1";
             nodes[cur_n].op_r = 1;
             nodes[cur_n].op_c = 1;
-            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].op_type = CV_8U;
             nodes[cur_n].simd_step = mipp::N<int8_t>();
 
             const bool use_hist3x3 = true; // if don't use it, just shift while quant
             {
-                auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&cur_node, &mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simple_update = [&nodes, cur_n, mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
 
                     const int32_t TG1125 = std::tan(11.25/180*CV_PI)*(1<<15);
                     const int32_t TG3375 = std::tan(33.75/180*CV_PI)*(1<<15);
@@ -1522,8 +1518,9 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [imgCols, &cur_node, &mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols, mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
 
                     const int32_t TG1125 = std::tan(11.25/180*CV_PI)*(1<<15);
                     const int32_t TG3375 = std::tan(33.75/180*CV_PI)*(1<<15);
@@ -1587,6 +1584,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                     label_v = mipp::blend(label_v, ZERO32_v, mag_mask);
 
                                     // range 0-7, so no worry for signed int while pack
+                                    // two lanes may save one pack?
                                     mipp::Reg<int16_t> label16_v = mipp::pack<int32_t, int16_t>(label_v, ZERO32_v);
                                     mipp::Reg<int8_t> label8_v = mipp::pack<int16_t, int8_t>(label16_v, ZERO16_v);
 
@@ -1615,14 +1613,14 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 nodes[cur_n].op_name = "hist 3x3";
                 nodes[cur_n].op_r = 3;
                 nodes[cur_n].op_c = 3;
-                nodes[cur_n].parent = &nodes[cur_n - 1];
+                nodes[cur_n].parent = cur_n - 1;
                 nodes[cur_n].op_type = CV_8U;
                 nodes[cur_n].simd_step = mipp::N<int8_t>();
                 nodes[cur_n].use_simd = false;
                 {
-                    auto &cur_node = nodes[cur_n];
-                    nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                        auto &parent_node = *cur_node.parent;
+                    nodes[cur_n].simple_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
+                        auto &cur_node = nodes[cur_n];
+                        auto &parent_node = nodes[cur_node.parent];
                         int c = start_c;
                         const int col_step = cur_node.buffer_cols;
                         for (int r = start_r; r < end_r; r++){
@@ -1660,7 +1658,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     };
 
                     nodes[cur_n].simd_update = nodes[cur_n].simple_update;
-                    // nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
+                    // nodes[cur_n].simd_update = [imgCols, cur_node](int start_r, int end_r, int start_c, int end_c) {
                     //     auto &parent_node = *cur_node.parent;
                     //     int c = start_c;
                     //     for (int r = start_r; r < end_r; r++)
@@ -1683,17 +1681,17 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             }
 
             cur_n++;
-            nodes.resize(nodes.size() + 1);
+            nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "spread 1x5";
             nodes[cur_n].op_r = 1;
             nodes[cur_n].op_c = cur_T + 1;
-            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].op_type = CV_8U;
             nodes[cur_n].simd_step = mipp::N<int8_t>();
-            {
-                auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+            {  
+                nodes[cur_n].simple_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
                     int c = start_c;
                     for (int r = start_r; r < end_r; r++){
                         c = start_c;
@@ -1710,8 +1708,9 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
                     int c = start_c;
                     for (int r = start_r; r < end_r; r++){
                         c = start_c;
@@ -1737,17 +1736,17 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             }
 
             cur_n++;
-            nodes.resize(nodes.size() + 1);
+            nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "spread 5x1";
             nodes[cur_n].op_r = cur_T + 1;
             nodes[cur_n].op_c = 1;
-            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].op_type = CV_8U;
             nodes[cur_n].simd_step = mipp::N<int8_t>();
             {
-                auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&cur_node](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simple_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
 
                     const int col_step = cur_node.buffer_cols;
                     int c = start_c;
@@ -1766,8 +1765,9 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [imgCols, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
 
                     const int col_step = cur_node.buffer_cols;
                     int c = start_c;
@@ -1795,11 +1795,11 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             }
 
             cur_n++;
-            nodes.resize(nodes.size() + 1);
+            nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "response 1x1";
             nodes[cur_n].op_r = 1;
             nodes[cur_n].op_c = 1;
-            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].num_buf = 8;
             nodes[cur_n].op_type = CV_8U;
             nodes[cur_n].simd_step = mipp::N<int8_t>();
@@ -1807,10 +1807,9 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 const uint8_t scores[2] = {4, 1};
                 const uint8_t hit_mask[8] = { 1,   2, 4,  8,  16, 32, 64,  128};
                 const uint8_t side_mask[8] = {131, 5, 10, 20, 40, 80, 160, 65};
-
-                auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [&cur_node, &hit_mask, &side_mask, &scores](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simple_update = [&nodes, cur_n, hit_mask, side_mask, scores](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
                     int c = start_c;
                     for (int ori = 0; ori < 8; ori++){
                         for (int r = start_r; r < end_r; r++){
@@ -1826,8 +1825,9 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [imgCols, &cur_node, &hit_mask, &side_mask, &scores](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *cur_node.parent;
+                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols, hit_mask, side_mask, scores](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
 
                     mipp::Reg<uint8_t> const_score0 = scores[0];
                     mipp::Reg<uint8_t> const_score1 = scores[1];
@@ -1871,11 +1871,11 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             }
 
             cur_n++;
-            nodes.resize(nodes.size() + 1);
+            nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "linearize 1x1";
             nodes[cur_n].op_r = 1;
             nodes[cur_n].op_c = 1;
-            nodes[cur_n].parent = &nodes[cur_n - 1];
+            nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].num_buf = 0; // last buffer is output, no need to alloc
             nodes[cur_n].op_type = CV_8U;
             nodes[cur_n].simd_step = mipp::N<int8_t>();
@@ -1885,12 +1885,10 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
             const int linearize_row_step = imgCols / cur_T;
             {
-                auto &cur_node = nodes[cur_n];
-                nodes[cur_n].simple_update = [linearize_row_step, cur_T, &cur_node](int start_r, int end_r, int start_c, int end_c) {
-                    auto &parent_node = *(cur_node.parent);
-
-                    for (int i = 0; i < 8; i++)
-                    {
+                nodes[cur_n].simple_update = [&nodes, cur_n, linearize_row_step, cur_T](int start_r, int end_r, int start_c, int end_c) {
+                    auto &cur_node = nodes[cur_n];
+                    auto &parent_node = nodes[cur_node.parent];
+                    for(int i = 0; i < 8; i++){
                         // assume cur_T = 4, row col of the linearized response_map:
                         // int lrs = linearize_row_step;
                         //       0            1            2            3             lrs - 1
@@ -1934,17 +1932,14 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         int target_start_c = linearize_row_step * (start_r / cur_T) + start_c / cur_T;
                         int target_start_r = cur_T * (start_r % cur_T);
 
-                        for (int tileT_r = start_r; tileT_r < start_r + cur_T; ++tileT_r)
-                        {
-                            for (int tileT_c = start_c; tileT_c < start_c + cur_T; ++tileT_c)
-                            {
+                        for(int tileT_r = start_r; tileT_r < start_r + cur_T; ++tileT_r){
+                            for (int tileT_c = start_c; tileT_c < start_c + cur_T; ++tileT_c){
                                 uint8_t *memory = &cur_node.buffers[i].at<uint8_t>(target_start_r, target_start_c);
                                 target_start_r = (target_start_r + 1) % (cur_T * cur_T);
 
                                 // Inner two loops copy every T-th pixel into the linear memory
                                 int c = 0;
-                                for (int r = tileT_r; r < end_r; r += cur_T, memory += linearize_row_step)
-                                {
+                                for(int r = tileT_r; r < end_r; r += cur_T, memory += linearize_row_step){
                                     uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c + tileT_c, i);
                                     for (; c + tileT_c < end_c; c += cur_T)
                                         *memory++ = parent_buf_ptr[c];
@@ -1956,7 +1951,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-            nodes[cur_n].backward_rc(tileRows, imgCols, 0, 0); // calculate padding for buffer.
+            nodes[cur_n].backward_rc(nodes, tileRows, imgCols, 0, 0); // calculate padding for buffer.
             // in this case just one output. If have multiple, just call this from all the outputs
             for (auto &node : nodes){
                 for (int i = 0; i < node.num_buf; i++)
@@ -1975,9 +1970,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     int end_c = tile_c + tileCols;
                     end_c = (end_c > imgCols) ? imgCols : end_c;
 
-                    int start_from = 0;
-                    if(!need_pyr) start_from = 2;
-                    for(int cur_node = start_from; cur_node < nodes.size(); cur_node++){
+                    for(int cur_node = 0; cur_node < nodes.size(); cur_node++){
 
                         // clamp row col
                         int update_start_r = tile_r - nodes[cur_node].padded_rows;

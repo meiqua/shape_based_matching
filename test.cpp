@@ -272,7 +272,7 @@ void angle_test(string mode = "test"){
         Mat img = padded_img(roi).clone();
         assert(img.isContinuous());
 
-//        cvtColor(img, img, CV_BGR2GRAY);
+        cvtColor(img, img, CV_BGR2GRAY);
 
         std::cout << "test img size: " << img.rows * img.cols << std::endl << std::endl;
 
@@ -373,7 +373,7 @@ void noise_test(string mode = "test"){
         Mat test_img = imread(prefix+"case2/test.png");
         assert(!test_img.empty() && "check your img path");
 
-        // cvtColor(test_img, test_img, CV_BGR2GRAY);
+         cvtColor(test_img, test_img, CV_BGR2GRAY);
 
         int stride = 16;
         int n = test_img.rows/stride;
