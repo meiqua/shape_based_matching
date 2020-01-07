@@ -1096,7 +1096,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         //#pragma omp parallel for num_threads(num_threads)
         for (int thread_i = 0; thread_i < num_threads; thread_i++){
             const int tile_start_rows = thread_i * thread_rows_step;
-            const int tile_end_rows = (thread_i + 1) * thread_rows_step;
+            const int tile_end_rows = tile_start_rows + thread_rows_step;
             std::vector<line2Dup::FilterNode> nodes;
             // node graph:
             // src -- gx 1x5 -- img0 -- gy 5x1 -- img1 -- sxx 1x3 -- img2 -- sxy 3x1 -- img3 -- mag         1x1 -- img4 -- hist 3x3 -- img5
@@ -1248,14 +1248,13 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
                         int32_t* parent_buf_ptr[gauss_size];
                         int32_t** parent_buf_center = parent_buf_ptr + gauss_size/2;
-                        parent_buf_ptr[gauss_size/2] = parent_node.ptr<int32_t>(r, c);
+                        parent_buf_center[0] = parent_node.ptr<int32_t>(r, c);
                         for(int i=1; i<=gauss_size/2; i++){
                             parent_buf_center[i] = parent_node.ptr<int32_t>(r+i, c);
                             parent_buf_center[-i] = parent_node.ptr<int32_t>(r-i, c);
                         }
-
+                        bool is_even_row = r%2 == 0;
                         for (; c < end_c; c++, buf_ptr++){
-                            
                             int32_t local_sum = gauss_knl_uint32[gauss_size/2] * (*(parent_buf_center[0]));
                             int gauss_knl_idx = gauss_size/2 + 1;
                             for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
@@ -1264,8 +1263,8 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             }
                             *buf_ptr = int16_t(local_sum >> (2*gauss_quant_bit));
 
-                            if(need_pyr && r<tile_end_rows){  // avoid out of current thread's rows
-                                if(r%2==0 && c%2==0){
+                            if(need_pyr && is_even_row && r<tile_end_rows){  // avoid out of current thread's rows
+                                if(c%2==0){
                                     *pyr_src_ptr = *buf_ptr;
                                     pyr_src_ptr++;
                                 }
@@ -1385,7 +1384,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         for (; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr++){
                             // sxx  -1 0 1
                             *buf_ptr_0 = -*(parent_buf_ptr-1) + *(parent_buf_ptr+1);
-                            // sxy   1 2 1
+                            // syx   1 2 1
                             *buf_ptr_1 = *(parent_buf_ptr-1) + 2*(*parent_buf_ptr) + *(parent_buf_ptr+1);
                         }
                     }
@@ -1594,15 +1593,16 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             for(int i=0; i<cur_node.simd_step; i+=cur_node.simd_step/2){
                                 mipp::Reg<int16_t> dx_int16(parent_buf_ptr_0 + i);
                                 mipp::Reg<int16_t> dy_int16(parent_buf_ptr_1 + i);
-                                mipp::Reg<int32_t> dx_int32 = mipp::cvt<int16_t, int32_t>(dx_int16);
-                                mipp::Reg<int32_t> dy_int32 = mipp::cvt<int16_t, int32_t>(dy_int16);
+
+                                mipp::Reg<int32_t> dx_int32 = mipp::cvt<int16_t, int32_t>(mipp::low(dx_int16));
+                                mipp::Reg<int32_t> dy_int32 = mipp::cvt<int16_t, int32_t>(mipp::low(dy_int16));
 
                                 mipp::Reg<int32_t> mag = dx_int32*dx_int32 + dy_int32*dy_int32;
 
                                 auto mag_mask = mag > mag_thresh_l2;
                                 if(!mipp::testz(mag_mask)){
                                     mipp::Reg<int32_t> abs_dx = mipp::abs(dx_int32);
-                                    mipp::Reg<int32_t> abs_dy = mipp::abs(dx_int32) << 15;
+                                    mipp::Reg<int32_t> abs_dy = mipp::abs(dy_int32) << 15;
 
         //                            uint8_t label =  (y<x*TG3375)?
         //                                            ((y<x*TG1125)?(0):(1)):
@@ -1619,7 +1619,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                                                        , abs_dy<abs_dx*TG5625_v)
                                                                        , abs_dy<abs_dx*TG3375_v);
                                     label_v = mipp::blend(label_v, EIGHT32_v-label_v,
-                                                          ((label_v == ZERO32_v) | ((abs_dx^abs_dy)<0)));
+                                                          ((label_v == ZERO32_v) | ((dx_int32^dy_int32)<0)));
 
                                     label_v = mipp::blend(label_v, ZERO32_v, mag_mask);
 
@@ -1837,7 +1837,6 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             parent_buf_ptr_center[-i] = parent_node.ptr<uint8_t>(r-i, c);
                         }
 
-
                         for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step){
                             if (c + cur_node.simd_step >= imgCols)
                                 break; // simd may excel end_c, but avoid simd out of img
@@ -1885,9 +1884,8 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c, ori);
                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
                             for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
-                                uchar s0 = (hit_mask[ori] & *parent_buf_ptr) ? scores[0] : 0;
-                                uchar s1 = (side_mask[ori] & *parent_buf_ptr) ? scores[1] : 0;
-                                *buf_ptr = std::max(s0, s1);
+                                *buf_ptr = (hit_mask[ori] & *parent_buf_ptr) ? scores[0] : 
+                                ((side_mask[ori] & *parent_buf_ptr) ? scores[1] : 0);
                             }
                         }
                     }
@@ -1914,20 +1912,9 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                     break; // simd may excel end_c, but avoid simd out of img
 
                                 mipp::Reg<uint8_t> src_v(parent_buf_ptr);
-                                auto s0 = mipp::blend(zero8_v, const_score0, (hit_mask_v & src_v) == zero8_v);
-                                auto s1 = mipp::blend(zero8_v, const_score1, (side_mask_v & src_v) == zero8_v);
-#ifdef has_max_int8_t
-                                mipp::Reg<uint8_t> result = mipp::max(s0, s1);
+                                auto result = mipp::blend(mipp::blend(zero8_v, const_score1, (side_mask_v & src_v) == zero8_v), 
+                                    const_score0, (hit_mask_v & src_v) == zero8_v);
                                 result.store(buf_ptr);
-#else
-                                uint8_t s0_buffer[mipp::N<uint8_t>()] = {0};
-                                uint8_t s1_buffer[mipp::N<uint8_t>()] = {0};
-                                s0.store(s0_buffer);
-                                s1.store(s1_buffer);
-                                for(int i=0; i<cur_node.simd_step; i++){
-                                    *(buf_ptr+i) = std::max(s0_buffer[i], s1_buffer[i]);
-                                }
-#endif
                             }
                         }
 
@@ -2056,10 +2043,10 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
                         if (nodes[cur_node].use_simd){
                             nodes[cur_node].prepared_col =
-                            nodes[cur_node].simd_update(update_start_r, update_end_r, update_start_c, update_end_c);
+                                nodes[cur_node].simd_update(update_start_r, update_end_r, update_start_c, update_end_c);
                         }else{
                             nodes[cur_node].prepared_col =
-                            nodes[cur_node].simple_update(update_start_r, update_end_r, update_start_c, update_end_c);
+                                nodes[cur_node].simple_update(update_start_r, update_end_r, update_start_c, update_end_c);
                         }
                     }
                 }
