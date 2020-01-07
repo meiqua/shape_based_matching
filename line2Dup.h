@@ -166,7 +166,6 @@ inline Match::Match(int _x, int _y, float _similarity, const std::string &_class
 struct FilterNode
 {
     std::vector<cv::Mat> buffers;
-    bool is_cycle_buffer = true;
 
     int num_buf = 1;
     int buffer_rows = 0;
