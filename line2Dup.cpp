@@ -1228,7 +1228,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-            cur_n++;
+            cur_n++; // 1
             nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "gy gauss_sizex1";
             nodes[cur_n].op_r = gauss_size;
@@ -1240,7 +1240,6 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         (int start_r, int end_r, int start_c, int end_c){
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
-                    int col_step = parent_node.buffer_cols;
                     int c = start_c;
                     for(int r = start_r; r < end_r; r++){
                         c = start_c;
@@ -1283,7 +1282,6 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         (int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
-                    int col_step = parent_node.buffer_cols;
                     int c = start_c;
 
                     mipp::Reg<int16_t> zero16_v = int16_t(0);
@@ -1366,7 +1364,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-            cur_n++;
+            cur_n++; // 2
             nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "sxx syx 1x3";
             nodes[cur_n].op_r = 1;
@@ -1383,7 +1381,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         c = start_c;
                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
                         int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
-                        int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);;
+                        int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
                         for (; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr++){
                             // sxx  -1 0 1
                             *buf_ptr_0 = -*(parent_buf_ptr-1) + *(parent_buf_ptr+1);
@@ -1402,7 +1400,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         c = start_c;
                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
                         int16_t *buf_ptr_1 = cur_node.ptr<int16_t>(r, c, 1);
-                        int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);;
+                        int16_t *parent_buf_ptr = parent_node.ptr<int16_t>(r, c);
 
                         for (; c < end_c; c += cur_node.simd_step, buf_ptr_0 += cur_node.simd_step,
                              buf_ptr_1 += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
@@ -1433,7 +1431,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-            cur_n++;
+            cur_n++; // 3
             nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "sxy syy 3x1";
             nodes[cur_n].op_r = 3;
@@ -1445,7 +1443,6 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
                     int c = start_c;
-                    const int col_step = cur_node.buffer_cols;
                     for (int r = start_r; r < end_r; r++){
                         c = start_c;
                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
@@ -1474,7 +1471,6 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
                     int c = start_c;
-                    const int col_step = cur_node.buffer_cols;
                     for (int r = start_r; r < end_r; r++){
                         c = start_c;
                         int16_t *buf_ptr_0 = cur_node.ptr<int16_t>(r, c, 0);
@@ -1518,7 +1514,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-            cur_n++;
+            cur_n++; // 4
             nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "mag phase quant 1x1";
             nodes[cur_n].op_r = 1;
@@ -1723,7 +1719,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 }
             }
 
-            cur_n++;
+            cur_n++; // 5
             nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "spread 1x5";
             nodes[cur_n].op_r = 1;
@@ -1783,7 +1779,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-            cur_n++;
+            cur_n++; // 6
             nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "spread 5x1";
             nodes[cur_n].op_r = cur_T + 1;
@@ -1866,7 +1862,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-            cur_n++;
+            cur_n++; // 7
             nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "response 1x1";
             nodes[cur_n].op_r = 1;
@@ -1942,7 +1938,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-            cur_n++;
+            cur_n++; // 8
             nodes.push_back(FilterNode());
             nodes[cur_n].op_name = "linearize 1x1";
             nodes[cur_n].op_r = 1;
@@ -2022,8 +2018,8 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-//            nodes[cur_n].backward_rc(nodes, imgRows, imgCols, 0, 0);
-            nodes[cur_n].backward_rc(nodes, tileRows, imgCols, 0, 0); // cycle buffer to save some space
+            nodes[cur_n].backward_rc(nodes, imgRows, imgCols, 0, 0);
+//            nodes[cur_n].backward_rc(nodes, tileRows, imgCols, 0, 0); // cycle buffer to save some space
 
             for (auto &node : nodes){
                 for (int i = 0; i < node.num_buf; i++)
@@ -2074,13 +2070,14 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 }
 
                 Mat pyr_show;
-                pyr_src.convertTo(pyr_show, CV_8U);
+                convertScaleAbs(nodes[1].buffers[0], pyr_show);
+//                nodes[3].buffers[0].convertTo(pyr_show, CV_8U);
                 cvtColor(pyr_show, pyr_show, CV_GRAY2BGR);
                 int padding = 100;
                 Mat padded_show(pyr_show.rows+padding*2, pyr_show.cols+padding*2, CV_8UC3, cv::Scalar(0, 255, 0));
                 pyr_show.copyTo(padded_show({padding, padding, pyr_show.cols, pyr_show.rows}));
                 imshow("pyr_src", padded_show);
-                waitKey(0);
+                waitKey(100);
             }
             waitKey(0);
             exit(1);
