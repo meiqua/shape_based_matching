@@ -176,7 +176,6 @@ struct FilterNode
 
     int anchor_row = 0;  // anchor: where topleft is in full img
     int anchor_col = 0;
-    int zero_row = 0;  // zero: where is start row because of rolling buffer, in buffer img
 
     int prepared_row = 0; // where have been calculated in full img
     int prepared_col = 0;
@@ -195,7 +194,8 @@ struct FilterNode
     {
         r -= anchor_row;  // from full img to buffer img
         c -= anchor_col;
-        r = (r + zero_row) % buffer_rows;  // row is changed because of rolling buffer
+        assert(r >= 0 && c >= 0);
+        r = r % buffer_rows;  // row is changed because of rolling buffer
         return &buffers[buf_idx].at<T>(r, c);
     }
 
@@ -204,27 +204,17 @@ struct FilterNode
 
     void backward_rc(std::vector<FilterNode>& nodes, int rows, int cols, int cur_padded_rows, int cur_padded_cols) // calculate paddings
     {
-        if (rows > buffer_rows)
-        {
+        if (rows > buffer_rows){
             buffer_rows = rows;
             padded_rows = cur_padded_rows;
-
-            // for upper parent
-            cur_padded_rows += op_r / 2;
-            rows += op_r - 1;
         }
-        if (cols > buffer_cols)
-        {
+        if (cols > buffer_cols){
             buffer_cols = cols;
             padded_cols = cur_padded_cols;
-
-            // for upper parent
-            cur_padded_cols += op_c / 2;
-            cols += op_c - 1;
         }
-
         if (parent >= 0)
-            nodes[parent].backward_rc(nodes, rows, cols, cur_padded_rows, cur_padded_cols);
+            nodes[parent].backward_rc(nodes, buffer_rows+op_r - 1, cols+op_c - 1,
+                                      cur_padded_rows+op_r/2, cur_padded_cols+op_c/2);
     }
 };
 

@@ -118,7 +118,7 @@ void scale_test(string mode = "test"){
 
 //    mode = "test";
     if(mode == "train"){
-        Mat img = cv::imread(prefix+"case0/templ/circle.png");
+        Mat img = cv::imread(prefix+"case0/templ/circle.png", cv::IMREAD_GRAYSCALE);
         assert(!img.empty() && "check your img path");
         shape_based_matching::shapeInfo_producer shapes(img);
 
@@ -157,7 +157,7 @@ void scale_test(string mode = "test"){
         ids.push_back("circle");
         detector.readClasses(ids, prefix+"case0/%s_templ.yaml");
 
-        Mat test_img = imread(prefix+"case0/1.jpg");
+        Mat test_img = imread(prefix+"case0/1.jpg", cv::IMREAD_GRAYSCALE);
         assert(!test_img.empty() && "check your img path");
 
         // make the img having 32*n width & height
@@ -257,10 +257,11 @@ void angle_test(string mode = "test"){
         // angle & scale are saved here, fetched by match id
         auto infos = shape_based_matching::shapeInfo_producer::load_infos(prefix + "case1/test_info.yaml");
 
-        Mat test_img = imread(prefix+"case1/test.png");
+        // only support gray img now
+        Mat test_img = imread(prefix+"case1/test.png", cv::IMREAD_GRAYSCALE);
         assert(!test_img.empty() && "check your img path");
 
-        int padding = 500;
+        int padding = 250;
         cv::Mat padded_img = cv::Mat(test_img.rows + 2*padding,
                                      test_img.cols + 2*padding, test_img.type(), cv::Scalar::all(0));
         test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
@@ -271,8 +272,6 @@ void angle_test(string mode = "test"){
         Rect roi(0, 0, stride*m , stride*n);
         Mat img = padded_img(roi).clone();
         assert(img.isContinuous());
-
-        cvtColor(img, img, CV_BGR2GRAY);
 
         std::cout << "test img size: " << img.rows * img.cols << std::endl << std::endl;
 
@@ -370,10 +369,8 @@ void noise_test(string mode = "test"){
         ids.push_back("test");
         detector.readClasses(ids, prefix+"case2/%s_templ.yaml");
 
-        Mat test_img = imread(prefix+"case2/test.png");
+        Mat test_img = imread(prefix+"case2/test.png", cv::IMREAD_GRAYSCALE);
         assert(!test_img.empty() && "check your img path");
-
-         cvtColor(test_img, test_img, CV_BGR2GRAY);
 
         int stride = 16;
         int n = test_img.rows/stride;
@@ -503,6 +500,6 @@ void view_angle(){
 int main(){
 
     MIPP_test();
-    angle_test("test"); // test or train
+    noise_test("test"); // test or train
     return 0;
 }
