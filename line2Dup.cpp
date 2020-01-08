@@ -1049,15 +1049,15 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
     LinearMemoryPyramid lm_pyramid(pyramid_levels, std::vector<LinearMemories>(1, LinearMemories(8)));
     std::vector<Size> sizes;
 
-    const bool use_fusion = false;
-    if(use_fusion){
+    const bool use_fusion = true;
+    if(use_fusion){  // fusion version
         assert(source.channels() == 1 && "only gray img now");
         assert(mask.empty() && "mask not support yet");
 
         const int tileRows = 32;
         const int tileCols = 256;
         const int num_threads = 1;
-        const bool use_hist3x3 = false;
+        const bool use_hist3x3 = true;
 
         const int32_t mag_thresh_l2 = int32_t(res_map_mag_thresh*res_map_mag_thresh);
 
@@ -1097,8 +1097,8 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
             if(need_pyr) pyr_src = cv::Mat(imgRows/2, imgCols/2, CV_16U, cv::Scalar(0));
 
-            //#pragma omp parallel for num_threads(num_threads)
-            for (int thread_i = 0; thread_i < num_threads; thread_i++){
+//#pragma omp parallel for num_threads(num_threads)
+            for(int thread_i = 0; thread_i < num_threads; thread_i++){
                 const int tile_start_rows = thread_i * thread_rows_step;
                 const int tile_end_rows = tile_start_rows + thread_rows_step;
                 std::vector<line2Dup::FilterNode> nodes;
@@ -2025,7 +2025,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 }
 
                 nodes[cur_n].backward_rc(nodes, imgRows, imgCols, 0, 0);
-    //            nodes[cur_n].backward_rc(nodes, tileRows, imgCols, 0, 0); // cycle buffer to save some space
+//                nodes[cur_n].backward_rc(nodes, tileRows, imgCols, 0, 0); // cycle buffer to save some space
 
                 auto to_upper_pow2 = [](uint32_t x){
                     int power = 1;
@@ -2267,6 +2267,8 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
     std::sort(matches.begin(), matches.end());
     std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
     matches.erase(new_end, matches.end());
+
+    return matches;
 }
 
 // Used to filter out weak matches

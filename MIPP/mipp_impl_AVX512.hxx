@@ -36,6 +36,10 @@
 	inline reg blend<int8_t>(const reg v1, const reg v2, const msk m) {
 		return _mm512_castsi512_ps(_mm512_mask_blend_epi8((__mmask64)m, _mm512_castps_si512(v2), _mm512_castps_si512(v1)));
 	}
+	template <>
+	inline reg blend<uint8_t>(const reg v1, const reg v2, const msk m) {
+		return blend<int8_t>(v1, v2, m);
+	}
 #endif
 
 

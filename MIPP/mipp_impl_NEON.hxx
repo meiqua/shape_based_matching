@@ -1554,6 +1554,11 @@
 		return (reg) vbslq_u8((uint8x16_t)m, (uint8x16_t)v1, (uint8x16_t)v2);
 	}
 
+	template <>
+	inline reg blend<uint8_t>(const reg v1, const reg v2, const msk m) {
+		return blend<int8_t>(v1, v2, m);
+	}
+
 	// ---------------------------------------------------------------------------------------------------------- cmpeq
 #ifdef __aarch64__
 	template <>

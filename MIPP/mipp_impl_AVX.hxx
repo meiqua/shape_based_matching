@@ -2695,6 +2695,11 @@
 		                                              _mm256_castps_si256(v1),
 		                                              m));
 	}
+
+	template <>
+	inline reg blend<uint8_t>(const reg v1, const reg v2, const msk m) {
+		return blend<int8_t>(v1, v2, m);
+	}
 #else
 	template <>
 	inline reg blend<int16_t>(const reg v1, const reg v2, const msk m) {
@@ -2712,6 +2717,10 @@
 		auto v2_2 = andnb<int32_t>(m_reg, v2);
 		auto blen = xorb <int32_t>(v1_2, v2_2);
 		return blen;
+	}
+	template <>
+	inline reg blend<uint8_t>(const reg v1, const reg v2, const msk m) {
+		return blend<int8_t>(v1, v2, m);
 	}
 #endif
 

@@ -958,6 +958,10 @@
 	inline reg blend<int8_t>(const reg v1, const reg v2, const msk m) {
 		return _mm_castsi128_ps(_mm_blendv_epi8(_mm_castps_si128(v2), _mm_castps_si128(v1), m));
 	}
+	template <>
+	inline reg blend<uint8_t>(const reg v1, const reg v2, const msk m) {
+		return blend<int8_t>(v1, v2, m);
+	}
 #else
 	template <>
 	inline reg blend<double>(const reg v1, const reg v2, const msk m) {
@@ -991,6 +995,10 @@
 	template <>
 	inline reg blend<int8_t>(const reg v1, const reg v2, const msk m) {
 		return blend<double>(v1, v2, m);
+	}
+	template <>
+	inline reg blend<uint8_t>(const reg v1, const reg v2, const msk m) {
+		return blend<int8_t>(v1, v2, m);
 	}
 #endif
 

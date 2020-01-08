@@ -169,6 +169,8 @@ void scale_test(string mode = "test"){
         Mat img = test_img(roi).clone();
         assert(img.isContinuous());
 
+        if(test_img.channels() == 1) cvtColor(test_img, test_img, CV_GRAY2BGR);
+
         Timer timer;
         // match, img, min socre, ids
         auto matches = detector.match(img, 75, ids);
@@ -261,7 +263,7 @@ void angle_test(string mode = "test"){
         Mat test_img = imread(prefix+"case1/test.png", cv::IMREAD_GRAYSCALE);
         assert(!test_img.empty() && "check your img path");
 
-        int padding = 250;
+        int padding = 500;
         cv::Mat padded_img = cv::Mat(test_img.rows + 2*padding,
                                      test_img.cols + 2*padding, test_img.type(), cv::Scalar::all(0));
         test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
@@ -383,6 +385,8 @@ void noise_test(string mode = "test"){
         auto matches = detector.match(test_img, 80, ids);
         timer.out();
 
+        if(test_img.channels() == 1) cvtColor(test_img, test_img, CV_GRAY2BGR);
+
         std::cout << "matches.size(): " << matches.size() << std::endl;
         size_t top5 = 500;
         if(top5>matches.size()) top5=matches.size();
@@ -500,6 +504,6 @@ void view_angle(){
 int main(){
 
     MIPP_test();
-    noise_test("test"); // test or train
+    angle_test("test"); // test or train
     return 0;
 }
