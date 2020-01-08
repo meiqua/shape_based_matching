@@ -1177,7 +1177,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 const int16_t *parent_buf_ptr = &src.at<int16_t>(r, c);
                                 for (; c < end_c; c += cur_node.simd_step,
                                     buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
-                                    if (c + 2*cur_node.simd_step >= imgCols - gauss_size/2)
+                                    if (c + 2*cur_node.simd_step >= end_c)
                                         break; // simd may excel end_c, but avoid simd out of img, *4 because int32 = 4*8
 
                                     mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
@@ -1200,7 +1200,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 const uint8_t *parent_buf_ptr = &src.at<uint8_t>(r, c);
                                 for (; c < end_c; c += cur_node.simd_step,
                                     buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
-                                    if (c + 4*cur_node.simd_step >= imgCols - gauss_size/2)
+                                    if (c + 4*cur_node.simd_step >= end_c)
                                         break; // simd may excel end_c, but avoid simd out of img, *4 because int32 = 4*8
 
                                     mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
@@ -1308,7 +1308,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             // once for two simd step, because we need to fill the pyrdown lane
                             for (; c < end_c; c += 2*cur_node.simd_step, buf_ptr += 2*cur_node.simd_step,
                                   pyr_src_ptr += cur_node.simd_step){
-                                if (c + 4*cur_node.simd_step >= imgCols)
+                                if (c + 4*cur_node.simd_step >= end_c)
                                     break; // simd may excel end_c, but avoid simd out of img
 
                                 int c_stride = 0;
@@ -1408,7 +1408,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
                             for (; c < end_c; c += cur_node.simd_step, buf_ptr_0 += cur_node.simd_step,
                                  buf_ptr_1 += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step){
-                                if (c + cur_node.simd_step >= imgCols)
+                                if (c + cur_node.simd_step >= end_c)
                                     break; // simd may excel end_c, but avoid simd out of img
 
                                 mipp::Reg<int16_t> p0(parent_buf_ptr-1);
@@ -1492,7 +1492,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                  parent_buf_ptr_0 += cur_node.simd_step,
                                  parent_buf_ptr_0_ += cur_node.simd_step, parent_buf_ptr_1_ += cur_node.simd_step,
                                  parent_buf_ptr_0__ += cur_node.simd_step, parent_buf_ptr_1__ += cur_node.simd_step){
-                                if (c + cur_node.simd_step >= imgCols)
+                                if (c + cur_node.simd_step >= end_c)
                                     break; // simd may excel end_c, but avoid simd out of img
                                 {
                                     mipp::Reg<int16_t> p0(parent_buf_ptr_0_);
@@ -1528,6 +1528,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 nodes[cur_n].parent = cur_n - 1;
                 nodes[cur_n].op_type = CV_8U;
                 nodes[cur_n].simd_step = mipp::N<int8_t>();
+                nodes[cur_n].use_simd = false;
                 {
                     nodes[cur_n].simple_update = [&nodes, cur_n, mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
                         auto &cur_node = nodes[cur_n];
@@ -1603,7 +1604,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             int16_t *parent_buf_ptr_1 = parent_node.ptr<int16_t>(r, c, 1);
                             for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
                                  parent_buf_ptr_0 += cur_node.simd_step, parent_buf_ptr_1 += cur_node.simd_step){
-                                if (c + 2*cur_node.simd_step >= imgCols)
+                                if (c + 2*cur_node.simd_step >= end_c)
                                     break; // simd may excel end_c, but avoid simd out of img
 
                                 // int16_t step is 2*int32_t_step
@@ -1727,7 +1728,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         //         uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
                         //         for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
                         //         {
-                        //             if (c + cur_node.simd_step >= imgCols)
+                        //             if (c + cur_node.simd_step >= end_c)
                         //                 break; // simd may excel end_c, but avoid simd out of img
                         //         }
                         //     }
@@ -1747,6 +1748,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 nodes[cur_n].parent = cur_n - 1;
                 nodes[cur_n].op_type = CV_8U;
                 nodes[cur_n].simd_step = mipp::N<int8_t>();
+                nodes[cur_n].use_simd = true;
                 {
                     nodes[cur_n].simple_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
                         auto &cur_node = nodes[cur_n];
@@ -1777,7 +1779,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
                             for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
                                  parent_buf_ptr += cur_node.simd_step){
-                                if (c + cur_node.simd_step >= imgCols)
+                                if (c + cur_node.simd_step >= end_c)
                                     break; // simd may excel end_c, but avoid simd out of img
 
                                 mipp::Reg<uint8_t> local_sum(parent_buf_ptr);
@@ -1806,6 +1808,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 nodes[cur_n].parent = cur_n - 1;
                 nodes[cur_n].op_type = CV_8U;
                 nodes[cur_n].simd_step = mipp::N<int8_t>();
+                nodes[cur_n].use_simd = false;
                 {
                     nodes[cur_n].simple_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
                         auto &cur_node = nodes[cur_n];
@@ -1856,7 +1859,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             }
 
                             for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step){
-                                if (c + cur_node.simd_step >= imgCols)
+                                if (c + cur_node.simd_step >= end_c)
                                     break; // simd may excel end_c, but avoid simd out of img
 
                                 mipp::Reg<uint8_t> local_sum(parent_buf_ptr_center[0]);
@@ -1888,6 +1891,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 nodes[cur_n].num_buf = 8;
                 nodes[cur_n].op_type = CV_8U;
                 nodes[cur_n].simd_step = mipp::N<int8_t>();
+                nodes[cur_n].use_simd = false;
                 {
                     const uint8_t scores[2] = {4, 1};
                     const uint8_t hit_mask[8] = { 1,   2, 4,  8,  16, 32, 64,  128};
@@ -1926,7 +1930,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
                                 for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step,
                                      parent_buf_ptr += cur_node.simd_step){
-                                    if (c + cur_node.simd_step >= imgCols)
+                                    if (c + cur_node.simd_step >= end_c)
                                         break; // simd may excel end_c, but avoid simd out of img
 
                                     mipp::Reg<uint8_t> src_v(parent_buf_ptr);
@@ -1952,8 +1956,8 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 nodes[cur_n].num_buf = 0; // last buffer is output, no need to alloc
                 nodes[cur_n].op_type = CV_8U;
                 nodes[cur_n].simd_step = mipp::N<int8_t>();
-                nodes[cur_n].use_simd = false;
                 nodes[cur_n].buffers = lm_pyramid[cur_l][0]; // vector<Mat> pass by value, but Mat is by ref
+                nodes[cur_n].use_simd = false;
                 {
                     const int linearize_row_step = imgCols / cur_T;
                     nodes[cur_n].simple_update = [&nodes, cur_n, linearize_row_step, cur_T](int start_r, int end_r, int start_c, int end_c) {
@@ -2166,7 +2170,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 Rect(nodes[6].padded_cols, nodes[6].padded_rows, dy.cols, dy.rows)).clone();
                     Mat diff_spread = fusion_spread_quant != spread_quant;
                     imshow("diff spread", diff_spread);
-
+                    waitKey(0);
 
                     // response test
                     assert(nodes[7].buffers[0].rows = imgRows);

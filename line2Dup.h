@@ -185,8 +185,8 @@ struct FilterNode
     int op_r, op_c;
 
     int simd_step = mipp::N<int16_t>();
-    bool use_simd = false;
-//    bool use_simd = true;
+//    bool use_simd = false;
+    bool use_simd = true;
 
     template <class T>
     T *ptr(int r, int c, int buf_idx = 0)
