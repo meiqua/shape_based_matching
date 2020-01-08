@@ -1120,16 +1120,16 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
     assert(source.channels() == 1 && "only gray img now");
     assert(mask.empty() && "mask not support yet");
 
-    const int tileRows = 32;
-    const int tileCols = 256;
-    const int num_threads = 8;
-    const bool use_hist3x3 = true;
-
-    const int32_t mag_thresh_l2 = int32_t(res_map_mag_thresh*res_map_mag_thresh);
-
     const int lcm_Ts = least_mul_of_Ts(T_at_level);
     const int biggest_imgRows = source.rows/lcm_Ts*lcm_Ts;
     const int biggest_imgCols = source.cols/lcm_Ts*lcm_Ts;
+
+    const int tileRows = 32;
+    const int tileCols = 256;
+    const int num_threads = 4;
+    const bool use_hist3x3 = true;
+
+    const int32_t mag_thresh_l2 = int32_t(res_map_mag_thresh*res_map_mag_thresh);
 
     // gaussian coff quantization
     const int gauss_size = 5;
@@ -2038,16 +2038,16 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         //                         int target_r = cur_T * (r % cur_T) + c % cur_T;
 
                         // cleaner codes, but heavy math operation in the innermost loop
-                        //                         int c = start_c;
-                        //                         for (int r = start_r; r < end_r; r++){
-                        //                             c = start_c;
-                        //                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c, ori);
-                        //                             for (; c < end_c; c++, parent_buf_ptr++){
-                        //                                 int target_c = linearize_row_step * (r / cur_T) + c / cur_T;
-                        //                                 int target_r = cur_T * (r % cur_T) + c % cur_T;
-                        //                                 cur_node.buffers[ori].at<uint8_t>(target_r, target_c) = *parent_buf_ptr;
-                        //                             }
-                        //                         }
+//                        int c = start_c;
+//                        for (int r = start_r; r < end_r; r++){
+//                            c = start_c;
+//                            uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c, ori);
+//                            for (; c < end_c; c++, parent_buf_ptr++){
+//                                int target_c = linearize_row_step * (r / cur_T) + c / cur_T;
+//                                int target_r = cur_T * (r % cur_T) + c % cur_T;
+//                                cur_node.buffers[ori].at<uint8_t>(target_r, target_c) = *parent_buf_ptr;
+//                            }
+//                        }
 
                         // more codes, but less operation int the innermost loop
                         assert(start_c % cur_T == 0);
@@ -2065,7 +2065,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
                                 // Inner two loops copy every T-th pixel into the linear memory
                                 for(int r = tileT_r; r < end_r; r += cur_T, memory += linearize_row_step){
-                                    uint8_t *parent_buf_ptr = parent_node.buffers[ori].ptr(r%parent_node.buffer_rows);
+                                    uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, 0, ori);
                                     uint8_t *local_memory = memory;
                                     for (int c = tileT_c; c < end_c; c += cur_T)
                                         *local_memory++ = parent_buf_ptr[c];

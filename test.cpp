@@ -263,7 +263,7 @@ void angle_test(string mode = "test"){
         Mat test_img = imread(prefix+"case1/test.png", cv::IMREAD_GRAYSCALE);
         assert(!test_img.empty() && "check your img path");
 
-        int padding = 500;
+        int padding = 250;
         cv::Mat padded_img = cv::Mat(test_img.rows + 2*padding,
                                      test_img.cols + 2*padding, test_img.type(), cv::Scalar::all(0));
         test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
@@ -277,17 +277,18 @@ void angle_test(string mode = "test"){
 
         std::cout << "test img size: " << img.rows * img.cols << std::endl << std::endl;
 
+        std::vector<line2Dup::Match> matches = detector.match(img, 90, ids);;
+
         {
             Timer timer;
-            auto matches = detector.match_old(img, 90, ids);
+            const int times = 100;
+            for(int i=0; i<times; i++)
+                detector.match_old(img, 90, ids);
             timer.out("old");
+            for(int i=0; i<times; i++)
+                detector.match(img, 90, ids);
+            timer.out("fusion");
         }
-
-        Timer timer;
-        auto matches = detector.match(img, 90, ids);
-        timer.out("fusion");
-
-
 
         if(img.channels() == 1) cvtColor(img, img, CV_GRAY2BGR);
 
