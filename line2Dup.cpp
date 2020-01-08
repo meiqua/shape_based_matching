@@ -1306,7 +1306,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].simd_step = mipp::N<int32_t>();  // type is 16U, but step is 32
             {
-                nodes[cur_n].simple_update = [&nodes, cur_n, gauss_knl_uint32, need_pyr, &pyr_src, tile_end_rows]
+                nodes[cur_n].simple_update = [&nodes, cur_n, gauss_knl_uint32, need_pyr, &pyr_src, tile_end_rows, tile_start_rows]
                         (int start_r, int end_r, int start_c, int end_c){
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
@@ -1333,7 +1333,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                             }
                             *buf_ptr = int16_t(local_sum >> (2*gauss_quant_bit));
 
-                            if(need_pyr && is_even_row && r<tile_end_rows){  // avoid out of current thread's rows
+                            if(need_pyr && is_even_row && r<tile_end_rows && r>=tile_start_rows){  // avoid out of current thread's rows
                                 if(c%2==0){
                                     *pyr_src_ptr = *buf_ptr;
                                     pyr_src_ptr++;
@@ -1347,7 +1347,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&nodes, cur_n, gauss_knl_uint32, need_pyr, &pyr_src, tile_end_rows]
+                nodes[cur_n].simd_update = [&nodes, cur_n, gauss_knl_uint32, need_pyr, &pyr_src, tile_end_rows, tile_start_rows]
                         (int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
@@ -1401,7 +1401,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                     parent_buf_ptr[i]+=cur_node.simd_step;
                                 }
                             }
-                            if(need_pyr && r<tile_end_rows && is_even_row){
+                            if(need_pyr && r<tile_end_rows && r>=tile_start_rows && is_even_row){
 
                                 // simd version may have too many overhead
                                 const bool simd_pyr_version = false;
