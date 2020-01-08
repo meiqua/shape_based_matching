@@ -277,9 +277,17 @@ void angle_test(string mode = "test"){
 
         std::cout << "test img size: " << img.rows * img.cols << std::endl << std::endl;
 
+        {
+            Timer timer;
+            auto matches = detector.match_old(img, 90, ids);
+            timer.out("old");
+        }
+
         Timer timer;
         auto matches = detector.match(img, 90, ids);
-        timer.out();
+        timer.out("fusion");
+
+
 
         if(img.channels() == 1) cvtColor(img, img, CV_GRAY2BGR);
 
@@ -504,6 +512,6 @@ void view_angle(){
 int main(){
 
     MIPP_test();
-    noise_test("test"); // test or train
+    angle_test("test"); // test or train
     return 0;
 }

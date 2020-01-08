@@ -1022,6 +1022,73 @@ Detector::Detector(int num_features, std::vector<int> T, float weak_thresh, floa
     res_map_mag_thresh = strong_threash;
 }
 
+std::vector<Match> Detector::match_old(Mat source, float threshold,
+                                   const std::vector<std::string> &class_ids, const Mat mask) const
+{
+    std::vector<Match> matches;
+
+    // Initialize each ColorGradient with our sources
+    std::vector<Ptr<ColorGradientPyramid>> quantizers;
+    CV_Assert(mask.empty() || mask.size() == source.size());
+    quantizers.push_back(modality->process(source, mask));
+
+    // pyramid level -> ColorGradient -> quantization
+    LinearMemoryPyramid lm_pyramid(pyramid_levels,
+                                   std::vector<LinearMemories>(1, LinearMemories(8)));
+
+    // For each pyramid level, precompute linear memories for each ColorGradient
+    std::vector<Size> sizes;
+    for (int l = 0; l < pyramid_levels; ++l)
+    {
+        int T = T_at_level[l];
+        std::vector<LinearMemories> &lm_level = lm_pyramid[l];
+
+        if (l > 0)
+        {
+            for (int i = 0; i < (int)quantizers.size(); ++i)
+                quantizers[i]->pyrDown();
+        }
+
+        Mat quantized, spread_quantized;
+        std::vector<Mat> response_maps;
+        for (int i = 0; i < (int)quantizers.size(); ++i)
+        {
+            quantizers[i]->quantize(quantized);
+            spread(quantized, spread_quantized, T);
+            computeResponseMaps(spread_quantized, response_maps);
+
+            LinearMemories &memories = lm_level[i];
+            for (int j = 0; j < 8; ++j)
+                linearize(response_maps[j], memories[j], T);
+        }
+
+        sizes.push_back(quantized.size());
+    }
+    if (class_ids.empty())
+    {
+        // Match all templates
+        TemplatesMap::const_iterator it = class_templates.begin(), itend = class_templates.end();
+        for (; it != itend; ++it)
+            matchClass(lm_pyramid, sizes, threshold, matches, it->first, it->second);
+    }
+    else
+    {
+        // Match only templates for the requested class IDs
+        for (int i = 0; i < (int)class_ids.size(); ++i)
+        {
+            TemplatesMap::const_iterator it = class_templates.find(class_ids[i]);
+            if (it != class_templates.end())
+                matchClass(lm_pyramid, sizes, threshold, matches, it->first, it->second);
+        }
+    }
+
+    // Sort matches by similarity, and prune any duplicates introduced by pyramid refinement
+    std::sort(matches.begin(), matches.end());
+    std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
+    matches.erase(new_end, matches.end());
+    return matches;
+}
+
 static int gcd(int a, int b){
     if (a == 0)
         return b;
@@ -1056,7 +1123,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
     const int tileRows = 32;
     const int tileCols = 256;
     const int num_threads = 1;
-    const bool use_hist3x3 = false;
+    const bool use_hist3x3 = true;
 
     const int32_t mag_thresh_l2 = int32_t(res_map_mag_thresh*res_map_mag_thresh);
 
@@ -1066,7 +1133,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
     // gaussian coff quantization
     const int gauss_size = 5;
-    const int gauss_quant_bit = 8;
+    const int gauss_quant_bit = 4;  // should be larger if gauss_size is larger
     cv::Mat double_gauss = cv::getGaussianKernel(gauss_size, 0, CV_64F);
     int32_t gauss_knl_uint32[gauss_size] = {0};
     for(int i=0; i<gauss_size; i++){
@@ -1096,7 +1163,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
         if(need_pyr) pyr_src = cv::Mat(imgRows/2, imgCols/2, CV_16U, cv::Scalar(0));
 
-        //#pragma omp parallel for num_threads(num_threads)
+//#pragma omp parallel for num_threads(num_threads)
         for(int thread_i = 0; thread_i < num_threads; thread_i++){
             const int tile_start_rows = thread_i * thread_rows_step;
             const int tile_end_rows = tile_start_rows + thread_rows_step;
@@ -1280,7 +1347,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols, gauss_knl_uint32, need_pyr, &pyr_src, tile_end_rows]
+                nodes[cur_n].simd_update = [&nodes, cur_n, gauss_knl_uint32, need_pyr, &pyr_src, tile_end_rows]
                         (int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
@@ -1394,7 +1461,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simd_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
 
@@ -1471,7 +1538,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simd_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
                     int c = start_c;
@@ -1527,7 +1594,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             nodes[cur_n].parent = cur_n - 1;
             nodes[cur_n].op_type = CV_8U;
             nodes[cur_n].simd_step = mipp::N<int8_t>();
-            nodes[cur_n].use_simd = false;
+            nodes[cur_n].use_simd = false; // mipp blend seems problematic
             {
                 nodes[cur_n].simple_update = [&nodes, cur_n, mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
@@ -1560,13 +1627,13 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                 label = (label==0 || is_0_90) ? label: 8-label;
 
                                 // test
-                                //                                double theta = std::atan2(dy, dx);
-                                //                                double theta_deg = theta / CV_PI * 180;
-                                //                                while(theta_deg < 0) theta_deg += 360;
-                                //                                while(theta_deg > 360) theta_deg -= 360;
-                                //                                uint8_t angle = std::round(theta_deg * 16.0 / 360.0);
-                                //                                uint8_t right_label = angle & 7;
-                                //                                assert(label == right_label);
+//                                double theta = std::atan2(dy, dx);
+//                                double theta_deg = theta / CV_PI * 180;
+//                                while(theta_deg < 0) theta_deg += 360;
+//                                while(theta_deg > 360) theta_deg -= 360;
+//                                uint8_t angle = std::round(theta_deg * 16.0 / 360.0);
+//                                uint8_t right_label = angle & 7;
+//                                assert(label == right_label);
 
                                 *buf_ptr = use_hist3x3 ? label: uint8_t(uint8_t(1)<<label);
                             }
@@ -1574,7 +1641,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols, mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simd_update = [&nodes, cur_n, mag_thresh_l2](int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
 
@@ -1681,22 +1748,24 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         auto &cur_node = nodes[cur_n];
                         auto &parent_node = nodes[cur_node.parent];
                         int c = start_c;
-                        const int col_step = cur_node.buffer_cols;
                         for (int r = start_r; r < end_r; r++){
                             c = start_c;
                             uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
                             uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                            for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++){
+                            uint8_t *parent_buf_ptr_ = parent_node.ptr<uint8_t>(r-1, c);
+                            uint8_t *parent_buf_ptr__ = parent_node.ptr<uint8_t>(r+1, c);
+                            for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++,
+                                 parent_buf_ptr_++, parent_buf_ptr__++){
                                 uint8_t votes_of_ori[8] = {0};
                                 votes_of_ori[*parent_buf_ptr]++;
                                 votes_of_ori[*(parent_buf_ptr+1)]++;
                                 votes_of_ori[*(parent_buf_ptr-1)]++;
-                                votes_of_ori[*(parent_buf_ptr-col_step)]++;
-                                votes_of_ori[*(parent_buf_ptr-col_step+1)]++;
-                                votes_of_ori[*(parent_buf_ptr-col_step-1)]++;
-                                votes_of_ori[*(parent_buf_ptr+col_step)]++;
-                                votes_of_ori[*(parent_buf_ptr+col_step+1)]++;
-                                votes_of_ori[*(parent_buf_ptr+col_step-1)]++;
+                                votes_of_ori[*(parent_buf_ptr_)]++;
+                                votes_of_ori[*(parent_buf_ptr_+1)]++;
+                                votes_of_ori[*(parent_buf_ptr_-1)]++;
+                                votes_of_ori[*(parent_buf_ptr__)]++;
+                                votes_of_ori[*(parent_buf_ptr__+1)]++;
+                                votes_of_ori[*(parent_buf_ptr__-1)]++;
 
                                 // Find bin with the most votes from the patch
                                 int max_votes = 0;
@@ -1715,27 +1784,6 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                         }
                         return c;
                     };
-
-                    nodes[cur_n].simd_update = nodes[cur_n].simple_update;
-                    // nodes[cur_n].simd_update = [imgCols, cur_node](int start_r, int end_r, int start_c, int end_c) {
-                    //     auto &parent_node = *cur_node.parent;
-                    //     int c = start_c;
-                    //     for (int r = start_r; r < end_r; r++)
-                    //     {
-                    //         c = start_c;
-                    //         uint8_t *buf_ptr = cur_node.ptr<uint8_t>(r, c);
-                    //         uint8_t *parent_buf_ptr = parent_node.ptr<uint8_t>(r, c);
-                    //         for (; c < end_c; c += cur_node.simd_step, buf_ptr += cur_node.simd_step, parent_buf_ptr += cur_node.simd_step)
-                    //         {
-                    //             if (c + cur_node.simd_step > end_c)
-                    //                 break; // simd may excel end_c, but avoid simd out of img
-                    //         }
-                    //     }
-
-                    //     if (c < end_c)
-                    //         return cur_node.simple_update(start_r, end_r, c, end_c);
-                    //     return c;
-                    // };
                 }
             }
 
@@ -1768,7 +1816,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simd_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
                     int c = start_c;
@@ -1840,7 +1888,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simd_update = [&nodes, cur_n](int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
 
@@ -1890,7 +1938,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             nodes[cur_n].num_buf = 8;
             nodes[cur_n].op_type = CV_8U;
             nodes[cur_n].simd_step = mipp::N<int8_t>();
-            nodes[cur_n].use_simd = false;
+            nodes[cur_n].use_simd = false; // mipp blend seems problematic
             {
                 const uint8_t scores[2] = {4, 1};
                 const uint8_t hit_mask[8] = { 1,   2, 4,  8,  16, 32, 64,  128};
@@ -1912,7 +1960,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                     }
                     return c;
                 };
-                nodes[cur_n].simd_update = [&nodes, cur_n, imgCols, hit_mask, side_mask, scores](int start_r, int end_r, int start_c, int end_c) {
+                nodes[cur_n].simd_update = [&nodes, cur_n, hit_mask, side_mask, scores](int start_r, int end_r, int start_c, int end_c) {
                     auto &cur_node = nodes[cur_n];
                     auto &parent_node = nodes[cur_node.parent];
 
@@ -1933,6 +1981,8 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                     break; // simd may excel end_c, but avoid simd out of img
 
                                 mipp::Reg<uint8_t> src_v(parent_buf_ptr);
+
+                                // blend of mipp seems probmatic
                                 auto result = mipp::blend(mipp::blend(zero8_v, const_score1, (side_mask_v & src_v) == zero8_v),
                                                           const_score0, (hit_mask_v & src_v) == zero8_v);
                                 result.store(buf_ptr);
@@ -2027,8 +2077,8 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-            nodes[cur_n].backward_rc(nodes, imgRows, imgCols, 0, 0);
-            //                nodes[cur_n].backward_rc(nodes, tileRows, imgCols, 0, 0); // cycle buffer to save some space
+//            nodes[cur_n].backward_rc(nodes, imgRows, imgCols, 0, 0);
+              nodes[cur_n].backward_rc(nodes, tileRows, imgCols, 0, 0); // cycle buffer to save some space
 
             auto to_upper_pow2 = [](uint32_t x){
                 int power = 1;

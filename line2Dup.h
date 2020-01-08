@@ -228,6 +228,10 @@ public:
     Detector(std::vector<int> T);
     Detector(int num_features, std::vector<int> T, float weak_thresh = 30.0f, float strong_thresh = 60.0f);
 
+    std::vector<Match> match_old(cv::Mat sources, float threshold,
+                                                     const std::vector<std::string> &class_ids = std::vector<std::string>(),
+                                                     const cv::Mat masks = cv::Mat()) const;
+
     std::vector<Match> match(cv::Mat sources, float threshold,
                                                      const std::vector<std::string> &class_ids = std::vector<std::string>(),
                                                      const cv::Mat masks = cv::Mat()) const;
