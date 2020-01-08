@@ -1122,7 +1122,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
     const int tileRows = 32;
     const int tileCols = 256;
-    const int num_threads = 1;
+    const int num_threads = 8;
     const bool use_hist3x3 = true;
 
     const int32_t mag_thresh_l2 = int32_t(res_map_mag_thresh*res_map_mag_thresh);
@@ -1163,7 +1163,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
         if(need_pyr) pyr_src = cv::Mat(imgRows/2, imgCols/2, CV_16U, cv::Scalar(0));
 
-//#pragma omp parallel for num_threads(num_threads)
+#pragma omp parallel for num_threads(num_threads)
         for(int thread_i = 0; thread_i < num_threads; thread_i++){
             const int tile_start_rows = thread_i * thread_rows_step;
             const int tile_end_rows = tile_start_rows + thread_rows_step;
@@ -2077,19 +2077,10 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                 };
             }
 
-//            nodes[cur_n].backward_rc(nodes, imgRows, imgCols, 0, 0);
-              nodes[cur_n].backward_rc(nodes, tileRows, imgCols, 0, 0); // cycle buffer to save some space
-
-            auto to_upper_pow2 = [](uint32_t x){
-                int power = 1;
-                while(power < x)
-                    power*=2;
-                return power;
-            };
+            nodes[cur_n].backward_rc(nodes, tile_end_rows - tile_start_rows, imgCols, 0, 0); // cycle buffer to save some space
 
             for (auto &node : nodes){
                 for (int i = 0; i < node.num_buf; i++){
-                    // node.buffer_rows = to_upper_pow2(node.buffer_rows);  // may be better for mod operation?
                     node.buffers.push_back(cv::Mat(node.buffer_rows, node.buffer_cols, node.op_type, cv::Scalar(0)));
                 }
 

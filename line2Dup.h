@@ -193,8 +193,8 @@ struct FilterNode
     {
         r -= anchor_row;  // from full img to buffer img
         c -= anchor_col;
-        assert(r >= 0 && c >= 0);
-        r = r % buffer_rows;  // row is changed because of rolling buffer
+//        assert(r >= 0 && c >= 0);
+//        r = r % buffer_rows;  // row is changed because of rolling buffer
         return &buffers[buf_idx].at<T>(r, c);
     }
 
