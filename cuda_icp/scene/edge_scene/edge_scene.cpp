@@ -373,8 +373,8 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
     }
 
     double alpha = 1;
-    int low = 30;
-    int high = 60;
+    int low = 10;
+    int high = 20;
 
     Mat blur;
     GaussianBlur(gray, blur, Size(5, 5), alpha, alpha);
@@ -401,7 +401,8 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
     pcd_buffer.clear();
     pcd_buffer.resize(img.rows * img.cols, ::Vec2f(-1, -1)); // -1 indicate no edge around
 
-    std::vector<::Vec2f> pcd_buffer_sub = pcd_buffer;
+    std::vector<::Vec2f> pcd_buffer_fixed = pcd_buffer;
+    std::vector<::Vec2f> normal_buffer_fixed = normal_buffer;
 
     for(int r=0; r<img.rows; r++){
         for(int c=0; c<img.cols; c++){
@@ -437,8 +438,8 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
                     y += (float)py;
                 }
 
-                normal_buffer[c + r*img.cols] = {float(nx), float(-ny)};
-                pcd_buffer_sub[c +r*img.cols] = {x, y};
+                normal_buffer_fixed[c + r*img.cols] = {float(nx), float(-ny)};
+                pcd_buffer_fixed[c +r*img.cols] = {x, y};
             }
         }
     }
@@ -451,7 +452,7 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
             for(int c=0+kernel_size; c<img.cols - kernel_size; c++){
 
                 if(edge.at<uchar>(r, c) > 0){
-                    auto pcd = pcd_buffer_sub[c + r*img.cols];
+                    auto pcd = pcd_buffer_fixed[c + r*img.cols];
                     for(int i=-kernel_size; i<=kernel_size; i++){
                         for(int j=-kernel_size; j<=kernel_size; j++){
 
@@ -466,6 +467,7 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
                             // if closer
                             if(dist_sq < dist_buffer.at<float>(new_r, new_c)){
                                 pcd_buffer[new_c + new_r*img.cols] = pcd;
+                                normal_buffer[new_c + new_r*img.cols] = normal_buffer_fixed[c + r*img.cols];
                                 dist_buffer.at<float>(new_r, new_c) = dist_sq;
                             }
                         }

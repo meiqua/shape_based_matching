@@ -45,7 +45,6 @@ struct Scene_edge{
 
             dst_pcd = pcd_ptr[idx];
 
-            idx = size_t(dst_pcd.x) + size_t(dst_pcd.y) * width;
             dst_normal = normal_ptr[idx];
 
             valid = true;
