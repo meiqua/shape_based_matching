@@ -373,8 +373,8 @@ void Scene_edge::init_Scene_edge_cpu(cv::Mat img, std::vector<::Vec2f> &pcd_buff
     }
 
     double alpha = 1;
-    int low = 30;
-    int high = 60;
+    int low = 10;
+    int high = 20;
 
     Mat blur;
     GaussianBlur(gray, blur, Size(5, 5), alpha, alpha);
