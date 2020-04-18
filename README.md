@@ -1,5 +1,11 @@
 # shape_based_matching  
 
+update:   
+[Transforms in shape-based matching](./Transforms%20in%20shape-based%20matching.pdf)  
+[pose refine with icp branch](https://github.com/meiqua/shape_based_matching/tree/icp2D), 0.1-0.5 degree accuracy   
+[icp + subpixel branch](https://github.com/meiqua/shape_based_matching/tree/subpixel), < 0.1 degree accuracy  
+[icp + subpixel + sim3(previous is so3) branch](https://github.com/meiqua/shape_based_matching/tree/sim3), deal with scale error  
+
 try to implement halcon shape based matching, refer to machine vision algorithms and applications, page 317 3.11.5, written by halcon engineers  
 We find that shape based matching is the same as linemod. [linemod pdf](Gradient%20Response%20Maps%20for%20Real-TimeDetection%20of%20Textureless%20Objects.pdf)  
 
@@ -84,3 +90,11 @@ test img & templ features
 ### noise test  
 
 ![test2](test/case2/result/together.png)  
+
+## some issues you may want to know  
+Well, issues are not clearly classified and many questions are discussed in one issue sometimes. For better reference, some typical discussions are pasted here.  
+
+[object too small?](https://github.com/meiqua/shape_based_matching/issues/13#issuecomment-474780205)  
+[failure case?](https://github.com/meiqua/shape_based_matching/issues/19#issuecomment-481153907)  
+[how to run even faster?](https://github.com/meiqua/shape_based_matching/issues/21#issuecomment-489664586)  
+
