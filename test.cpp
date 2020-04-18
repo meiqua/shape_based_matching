@@ -332,6 +332,6 @@ void MIPP_test(){
 int main(){
 
     MIPP_test();
-    angle_test("test");
+    angle_test("test"); // test or train
     return 0;
 }
