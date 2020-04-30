@@ -27,7 +27,16 @@ Mat3x3f eigen_slover_333(float *A, float *b)
 {
     Eigen::Matrix<float, 3, 3> A_eigen(A);
     Eigen::Matrix<float, 3, 1> b_eigen(b);
-    const Eigen::Matrix<double, 3, 1> update = A_eigen.cast<double>().ldlt().solve(b_eigen.cast<double>());
+    // ICP point to plane may be unstable, refer to
+    // https://www.cs.princeton.edu/~smr/papers/icpstability.pdf
+    // add a term ||x|| to make update reasonably small:
+    // f = ||(Rp + T - q) * n|| + penalty * ||X||   ==>
+    // (ATA + Identity * penalty) * X = B
+    Eigen::Matrix3d iden = Eigen::Matrix3d::Identity();
+    double penalty = 0.01;
+    Eigen::Matrix3d ATA_with_pen = A_eigen.cast<double>() + penalty*iden;
+    
+    const Eigen::Matrix<double, 3, 1> update = ATA_with_pen.ldlt().solve(b_eigen.cast<double>());
     Eigen::Matrix3d extrinsic = TransformVector3dToMatrix3d(update);
     return eigen_to_custom(extrinsic.cast<float>());
 }
