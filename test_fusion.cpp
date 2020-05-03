@@ -7,59 +7,6 @@
 using namespace std;
 using namespace cv;
 
-class Timer
-{
-public:
-    Timer() : beg_(clock_::now()) {}
-    void reset() { beg_ = clock_::now(); }
-    double elapsed() const
-    {
-        return std::chrono::duration_cast<second_>(clock_::now() - beg_).count();
-    }
-    void out(std::string message = "")
-    {
-        double t = elapsed();
-        std::cout << message << "\nelasped time:" << t << "s\n"
-                  << std::endl;
-        reset();
-    }
-    void record(std::string message = "")
-    {
-        if (str_time_map.find(message) == str_time_map.end())
-        {
-            str_time_map[message] = elapsed();
-        }
-        else
-        {
-            str_time_map[message] += elapsed();
-        }
-        reset();
-    }
-    void display(std::string message = "")
-    {
-        if (message == "")
-        {
-            for (auto item : str_time_map)
-            {
-                std::cout << item.first << "\nelasped time:" << item.second << "s\n"
-                          << std::endl;
-            }
-        }
-        else
-        {
-            std::cout << message << "\nelasped time:" << str_time_map[message] << "s\n"
-                      << std::endl;
-        }
-    }
-
-private:
-    typedef std::chrono::high_resolution_clock clock_;
-    typedef std::chrono::duration<double, std::ratio<1>> second_;
-    std::chrono::time_point<clock_> beg_;
-
-    std::map<std::string, double> str_time_map;
-};
-
 static std::string prefix = "/home/rfjiang/shape_based_matching/test/";
 
 struct FilterNode
@@ -149,6 +96,7 @@ void fusion_test()
 
     Timer timer;
     static const int KERNEL_SIZE = 5;
+    Mat smoothed;
     GaussianBlur(img, smoothed, Size(KERNEL_SIZE, KERNEL_SIZE), 0, 0, BORDER_REPLICATE);
     timer.out("GaussianBlur");
 
@@ -159,7 +107,7 @@ void fusion_test()
     Sobel(smoothed, sobel_dy, CV_32F, 0, 1, 3, 1.0, 0.0, BORDER_REPLICATE);
     timer.out("sobel_dy");
 
-    magnitude = sobel_dx.mul(sobel_dx) + sobel_dy.mul(sobel_dy);
+    Mat magnitude = sobel_dx.mul(sobel_dx) + sobel_dy.mul(sobel_dy);
     timer.out("magnitude");
 
     phase(sobel_dx, sobel_dy, sobel_ag, true);
@@ -168,6 +116,10 @@ void fusion_test()
     const int tileRows = 32;
     const int tileCols = 256;
     const int num_threads = 8;
+
+    const int imgRows = img.rows;
+    const int imgCols = img.cols;
+    const int thread_rows_step = imgRows / num_threads;
 
     // gaussian coff quantization
     const int gauss_size = 5;
@@ -178,6 +130,12 @@ void fusion_test()
     {
         gauss_knl_uint32[i] = int32_t(double_gauss.at<double>(i, 0) * (1 << gauss_quant_bit));
     }
+
+//#pragma omp parallel for num_threads(num_threads)
+        for(int thread_i = 0; thread_i < num_threads; thread_i++){
+            const int tile_start_rows = thread_i * thread_rows_step;
+            const int tile_end_rows = tile_start_rows + thread_rows_step;
+        }
 
     imshow("img", img);
     waitKey(0);

@@ -13,19 +13,54 @@ class Timer
 public:
     Timer() : beg_(clock_::now()) {}
     void reset() { beg_ = clock_::now(); }
-    double elapsed() const {
-        return std::chrono::duration_cast<second_>
-            (clock_::now() - beg_).count(); }
-    void out(std::string message = ""){
+    double elapsed() const
+    {
+        return std::chrono::duration_cast<second_>(clock_::now() - beg_).count();
+    }
+    void out(std::string message = "")
+    {
         double t = elapsed();
-        std::cout << message << "\nelasped time:" << t << "s\n" << std::endl;
+        std::cout << message << "\nelasped time:" << t << "s\n"
+                  << std::endl;
         reset();
     }
+    void record(std::string message = "")
+    {
+        if (str_time_map.find(message) == str_time_map.end())
+        {
+            str_time_map[message] = elapsed();
+        }
+        else
+        {
+            str_time_map[message] += elapsed();
+        }
+        reset();
+    }
+    void display(std::string message = "")
+    {
+        if (message == "")
+        {
+            for (auto item : str_time_map)
+            {
+                std::cout << item.first << "\nelasped time:" << item.second << "s\n"
+                          << std::endl;
+            }
+        }
+        else
+        {
+            std::cout << message << "\nelasped time:" << str_time_map[message] << "s\n"
+                      << std::endl;
+        }
+    }
+
 private:
     typedef std::chrono::high_resolution_clock clock_;
-    typedef std::chrono::duration<double, std::ratio<1> > second_;
+    typedef std::chrono::duration<double, std::ratio<1>> second_;
     std::chrono::time_point<clock_> beg_;
+
+    std::map<std::string, double> str_time_map;
 };
+
 class ScopeTimer: public Timer{
     ScopeTimer(std::string out_str_): out_str(out_str_){}
     ~ScopeTimer(){out(out_str);}
