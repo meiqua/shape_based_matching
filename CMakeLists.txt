@@ -40,3 +40,7 @@ include_directories (${INCLUDE_DIRECTORIES} "${CMAKE_CURRENT_SOURCE_DIR}/MIPP/")
 add_executable(${PROJECT_NAME}_test line2Dup.cpp test.cpp)
 target_link_libraries(${PROJECT_NAME}_test ${OpenCV_LIBS})
 
+# test exe
+add_executable(${PROJECT_NAME}_test_fusion line2Dup.cpp test_fusion.cpp)
+target_link_libraries(${PROJECT_NAME}_test_fusion ${OpenCV_LIBS})
+

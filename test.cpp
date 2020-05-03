@@ -6,7 +6,7 @@
 using namespace std;
 using namespace cv;
 
-static std::string prefix = "/home/meiqua/shape_based_matching/test/";
+static std::string prefix = "/home/rfjiang/shape_based_matching/test/";
 
 // NMS, got from cv::dnn so we don't need opencv contrib
 // just collapse it
@@ -263,7 +263,7 @@ void angle_test(string mode = "test"){
         Mat test_img = imread(prefix+"case1/test.png", cv::IMREAD_GRAYSCALE);
         assert(!test_img.empty() && "check your img path");
 
-        int padding = 250;
+        int padding = 1500;
         cv::Mat padded_img = cv::Mat(test_img.rows + 2*padding,
                                      test_img.cols + 2*padding, test_img.type(), cv::Scalar::all(0));
         test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
@@ -281,7 +281,7 @@ void angle_test(string mode = "test"){
 
         {
             Timer timer;
-            const int times = 100;
+            const int times = 10;
             for(int i=0; i<times; i++)
                 detector.match_old(img, 90, ids);
             timer.out("old");

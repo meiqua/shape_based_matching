@@ -1126,7 +1126,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
     const int tileRows = 32;
     const int tileCols = 256;
-    const int num_threads = 4;
+    const int num_threads = 8;
     const bool use_hist3x3 = true;
 
     const int32_t mag_thresh_l2 = int32_t(res_map_mag_thresh*res_map_mag_thresh);
@@ -1704,7 +1704,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
                                                 , abs_dy<abs_dx*TG3375_v);
                                     label_v = mipp::blend(label_v, EIGHT32_v-label_v,
                                                           ((label_v == ZERO32_v) |
-                                                           ((dx_int32>0 & dy_int32>0)|(dx_int32<0 & dy_int32<0))));
+                                                           (((dx_int32>0) & (dy_int32>0))|((dx_int32<0) & (dy_int32<0)))));
 
                                     label_v = mipp::blend(label_v, ZERO32_v, mag_mask);
 
