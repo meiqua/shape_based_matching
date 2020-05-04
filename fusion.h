@@ -323,7 +323,7 @@ public:
             int16_t *parent_buf_ptr = in_headers[0].ptr<int16_t>(r, c);
             int16_t *buf_ptr_0 = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
             int16_t *buf_ptr_1 = out_headers[1].ptr<int16_t>(r - op_row/2, c - op_col/2);
-            for(; c <= end_c-simd_step; c++, parent_buf_ptr+=simd_step,
+            for(; c <= end_c-simd_step; c+=simd_step, parent_buf_ptr+=simd_step,
                 buf_ptr_0+=simd_step, buf_ptr_1+=simd_step){
                 mipp::Reg<int16_t> p0(parent_buf_ptr-1);
                 mipp::Reg<int16_t> p1(parent_buf_ptr);
@@ -347,7 +347,11 @@ public:
         }
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<Sobel1x3SxxSyxNode_16S_16S>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Sobel1x3SxxSyxNode_16S_16S>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
 };
 
@@ -394,9 +398,9 @@ public:
 
             int16_t *buf_ptr_0 = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
             int16_t *buf_ptr_1 = out_headers[1].ptr<int16_t>(r - op_row/2, c - op_col/2);
-            for(; c <= end_c - simd_step; c++, buf_ptr_0+=simd_step, buf_ptr_1+=simd_step, parent_buf_ptr_0+=simd_step,
-                parent_buf_ptr_0_+=simd_step, parent_buf_ptr_0__+=simd_step, parent_buf_ptr_1+=simd_step,
-                parent_buf_ptr_1_+=simd_step, parent_buf_ptr_1__+=simd_step){
+            for(; c <= end_c - simd_step; c+=simd_step, buf_ptr_0+=simd_step, buf_ptr_1+=simd_step,
+                parent_buf_ptr_0+=simd_step, parent_buf_ptr_0_+=simd_step, parent_buf_ptr_0__+=simd_step,
+                parent_buf_ptr_1+=simd_step, parent_buf_ptr_1_+=simd_step, parent_buf_ptr_1__+=simd_step){
                 {
                     mipp::Reg<int16_t> p0(parent_buf_ptr_0_);
                     mipp::Reg<int16_t> p1(parent_buf_ptr_0);
@@ -426,7 +430,11 @@ public:
         }
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<Sobel3x1SxySyyNode_16S_16S>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Sobel3x1SxySyyNode_16S_16S>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
 };
 
@@ -1070,6 +1078,7 @@ public:
         }
 
         { // tile ROIs
+            update_rois_.clear();
             int cur_row = 0;
             for(; cur_row <= outRows - tileRows_; cur_row += tileRows_){
                 int cur_col = 0;
