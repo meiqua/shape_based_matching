@@ -1115,8 +1115,8 @@ public:
             nodes_private[0]->in_headers.clear();
             for(auto& in: in_v){
                 // data is not owned by mat if initialize it this way
-                cv::Mat buffer_header(cur_roi.width + nodes_private[0]->padded_row * 2,
-                        cur_roi.height + nodes_private[0]->padded_col * 2, in.type(), buffer_cur);
+                cv::Mat buffer_header(cur_roi.height + nodes_private[0]->padded_row * 2,
+                        cur_roi.width + nodes_private[0]->padded_col * 2, in.type(), buffer_cur);
 
                 auto cur_roi_padded = cur_roi;
                 cur_roi_padded.x -= nodes_private[0]->padded_col;
