@@ -113,7 +113,11 @@ public:
         }
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<Dummy1X1Node_8U_8U>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Dummy1X1Node_8U_8U>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
 };
 
@@ -184,7 +188,11 @@ public:
         }
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<Gauss1x5Node_8U_32S_4bit_larger>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Gauss1x5Node_8U_32S_4bit_larger>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
     const int gauss_quant_bit = 4;  // should be larger if gauss_size is larger
     const int gauss_size = 5;
@@ -278,7 +286,11 @@ public:
         }
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<Gauss5x1Node_32S_16S_4bit_smaller>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Gauss5x1Node_32S_16S_4bit_smaller>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
     const int gauss_quant_bit = 4; // should be larger if gauss_size is larger
     const int gauss_size = 5;
@@ -461,7 +473,11 @@ public:
         }
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<MagSqure1x1Node_16S_32S>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<MagSqure1x1Node_16S_32S>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
 };
 
@@ -562,7 +578,11 @@ public:
 
     void set_mag_thresh(int thresh){mag_thresh_l2 = thresh * thresh;}
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<MagPhaseQuant1x1Node_16S_8U>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<MagPhaseQuant1x1Node_16S_8U>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
     int mag_thresh_l2;
     const int32_t TG1125 = std::round(std::tan(11.25/180*CV_PI)*(1<<15));
@@ -682,7 +702,11 @@ public:
     }
     void set_mag_thresh(int thresh){mag_thresh_l2 = thresh * thresh;}
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<MagPhaseQuantShift1x1Node_16S_8U>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<MagPhaseQuantShift1x1Node_16S_8U>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
     int mag_thresh_l2;
     const int32_t TG1125 = std::round(std::tan(11.25/180*CV_PI)*(1<<15));
@@ -749,7 +773,11 @@ public:
         update_simple(start_r, start_c, end_r, end_c);
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<Hist3x3Node_8U_8U>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Hist3x3Node_8U_8U>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
     const int NEIGHBOR_THRESHOLD = 5;
 };
@@ -800,7 +828,11 @@ public:
         }
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<Spread1xnNode_8U_8U>(n_spread);
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Spread1xnNode_8U_8U>(n_spread);
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
     int n_spread;
 };
@@ -871,7 +903,11 @@ public:
         }
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<Spreadnx1Node_8U_8U>(n_spread);
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Spreadnx1Node_8U_8U>(n_spread);
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
     int n_spread;
 };
@@ -918,7 +954,11 @@ public:
         }
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<Response1x1Node_8U_8U>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Response1x1Node_8U_8U>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
     const uint8_t scores[2] = {4, 1};
     const uint8_t hit_mask[8] = { 1,   2, 4,  8,  16, 32, 64,  128};
@@ -1004,7 +1044,11 @@ public:
         update_simple(start_r, start_c, end_r, end_c);
     }
     std::shared_ptr<FilterNode> clone() const override {
-        return std::make_shared<LinearizeTxTNode_8U_8U>(cur_T, imgCols);
+        std::shared_ptr<FilterNode> node_new = std::make_shared<LinearizeTxTNode_8U_8U>(cur_T, imgCols);
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
     }
     int cur_T;
     int imgCols;
