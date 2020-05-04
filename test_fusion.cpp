@@ -4,82 +4,21 @@
 #include <assert.h>
 #include <chrono>
 #include <map>
+#include <stdlib.h>
 using namespace std;
 using namespace cv;
 
+#include "fusion.h"
+
 static std::string prefix = "/home/rfjiang/shape_based_matching/test/";
-
-struct FilterNode
-{
-    std::vector<cv::Mat> buffers;
-
-    int num_buf = 1;
-    int buffer_rows = 0;
-    int buffer_cols = 0;
-    int padded_rows = 0;
-    int padded_cols = 0;
-
-    int anchor_row = 0; // anchor: where topleft is in full img
-    int anchor_col = 0;
-
-    int prepared_row = 0; // where have been calculated in full img
-    int prepared_col = 0;
-    int parent = -1;
-
-    std::string op_name;
-    int op_type = CV_16U;
-    int op_r, op_c;
-
-    int simd_step = mipp::N<int16_t>();
-    //    bool use_simd = false;
-    bool use_simd = true;
-
-    template <class T>
-    T *ptr(int r, int c, int buf_idx = 0)
-    {
-        r -= anchor_row; // from full img to buffer img
-        c -= anchor_col;
-        //        assert(r >= 0 && c >= 0);
-        //        r = r % buffer_rows;  // row is changed because of rolling buffer
-        return &buffers[buf_idx].at<T>(r, c);
-    }
-
-    std::function<int(int, int, int, int)> simple_update; // update start_r end_r start_c end_c
-    std::function<int(int, int, int, int)> simd_update;
-
-    void backward_rc(std::vector<FilterNode> &nodes, int rows, int cols, int cur_padded_rows, int cur_padded_cols) // calculate paddings
-    {
-        if (rows > buffer_rows)
-        {
-            buffer_rows = rows;
-            padded_rows = cur_padded_rows;
-        }
-        if (cols > buffer_cols)
-        {
-            buffer_cols = cols;
-            padded_cols = cur_padded_cols;
-        }
-        if (parent >= 0)
-            nodes[parent].backward_rc(nodes, buffer_rows + op_r - 1, cols + op_c - 1,
-                                      cur_padded_rows + op_r / 2, cur_padded_cols + op_c / 2);
-    }
-};
 
 void fusion_test()
 {
-    line2Dup::Detector detector(128, {4, 8});
-    std::vector<std::string> ids;
-    ids.push_back("test");
-    detector.readClasses(ids, prefix + "case1/%s_templ.yaml");
-
-    // angle & scale are saved here, fetched by match id
-    auto infos = shape_based_matching::shapeInfo_producer::load_infos(prefix + "case1/test_info.yaml");
-
     // only support gray img now
     Mat test_img = imread(prefix + "case1/test.png", cv::IMREAD_GRAYSCALE);
     assert(!test_img.empty() && "check your img path");
 
-    int padding = 1500;
+    int padding = 500;
     cv::Mat padded_img = cv::Mat(test_img.rows + 2 * padding,
                                  test_img.cols + 2 * padding, test_img.type(), cv::Scalar::all(0));
     test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
@@ -95,53 +34,51 @@ void fusion_test()
               << std::endl;
 
     Timer timer;
+    double opencv_time = 0;
     static const int KERNEL_SIZE = 5;
     Mat smoothed;
-    GaussianBlur(img, smoothed, Size(KERNEL_SIZE, KERNEL_SIZE), 0, 0, BORDER_REPLICATE);
-    timer.out("GaussianBlur");
+    GaussianBlur(img, smoothed, Size(KERNEL_SIZE, KERNEL_SIZE), 0, 0, BORDER_CONSTANT);
+    opencv_time += timer.out("GaussianBlur");
 
     Mat sobel_dx, sobel_dy, sobel_ag;
-    Sobel(smoothed, sobel_dx, CV_32F, 1, 0, 3, 1.0, 0.0, BORDER_REPLICATE);
-    timer.out("sobel_dx");
+    Sobel(smoothed, sobel_dx, CV_32F, 1, 0, 3, 1.0, 0.0, BORDER_CONSTANT);
+    opencv_time += timer.out("sobel_dx");
 
-    Sobel(smoothed, sobel_dy, CV_32F, 0, 1, 3, 1.0, 0.0, BORDER_REPLICATE);
-    timer.out("sobel_dy");
+    Sobel(smoothed, sobel_dy, CV_32F, 0, 1, 3, 1.0, 0.0, BORDER_CONSTANT);
+    opencv_time += timer.out("sobel_dy");
 
     Mat magnitude = sobel_dx.mul(sobel_dx) + sobel_dy.mul(sobel_dy);
-    timer.out("magnitude");
+    opencv_time += timer.out("magnitude");
 
-    phase(sobel_dx, sobel_dy, sobel_ag, true);
-    timer.out("sobel_ag");
+    std::cout << "opencv mag total time: " << opencv_time << std::endl;
 
-    const int tileRows = 32;
-    const int tileCols = 256;
-    const int num_threads = 8;
+    std::vector<cv::Mat> in_v;
+    in_v.push_back(img);
+    std::vector<cv::Mat> out_v;
+    Mat mag_fusion(img.size(), CV_32S, cv::Scalar(0));
+    out_v.push_back(mag_fusion);
 
-    const int imgRows = img.rows;
-    const int imgCols = img.cols;
-    const int thread_rows_step = imgRows / num_threads;
+    simple_fusion::ProcessManager manager;
+    manager.nodes_.clear();
+    manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss1x5Node_8U_32S_4bit_larger>());
+    manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss5x1Node_32S_16S_4bit_smaller>());
+    manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
+    manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
+    manager.nodes_.push_back(std::make_shared<simple_fusion::MagSqure1x1Node_16S_32S>());
+    manager.arrange(img.rows, img.cols);
 
-    // gaussian coff quantization
-    const int gauss_size = 5;
-    const int gauss_quant_bit = 4; // should be larger if gauss_size is larger
-    cv::Mat double_gauss = cv::getGaussianKernel(gauss_size, 0, CV_64F);
-    int32_t gauss_knl_uint32[gauss_size] = {0};
-    for (int i = 0; i < gauss_size; i++)
-    {
-        gauss_knl_uint32[i] = int32_t(double_gauss.at<double>(i, 0) * (1 << gauss_quant_bit));
-    }
+    timer.reset();
+    manager.process(in_v, out_v);
+    timer.out("fusion mag");
 
-//#pragma omp parallel for num_threads(num_threads)
-        for(int thread_i = 0; thread_i < num_threads; thread_i++){
-            const int tile_start_rows = thread_i * thread_rows_step;
-            const int tile_end_rows = tile_start_rows + thread_rows_step;
-        }
+    mag_fusion.convertTo(mag_fusion, CV_32F);
+    Mat mag_diff = cv::abs(magnitude - mag_fusion);
 
     imshow("img", img);
+    imshow("diff", mag_diff);
     waitKey(0);
 
-    std::cout << "test end" << std::endl
-              << std::endl;
+    std::cout << "test end" << std::endl;
 }
 
 int main()

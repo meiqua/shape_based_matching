@@ -17,12 +17,13 @@ public:
     {
         return std::chrono::duration_cast<second_>(clock_::now() - beg_).count();
     }
-    void out(std::string message = "")
+    double out(std::string message = "")
     {
         double t = elapsed();
         std::cout << message << "\nelasped time:" << t << "s\n"
                   << std::endl;
         reset();
+        return t;
     }
     void record(std::string message = "")
     {

@@ -1163,7 +1163,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
         if(need_pyr) pyr_src = cv::Mat(imgRows/2, imgCols/2, CV_16U, cv::Scalar(0));
 
-#pragma omp parallel for num_threads(num_threads)
+//#pragma omp parallel for num_threads(num_threads)
         for(int thread_i = 0; thread_i < num_threads; thread_i++){
             const int tile_start_rows = thread_i * thread_rows_step;
             const int tile_end_rows = tile_start_rows + thread_rows_step;
