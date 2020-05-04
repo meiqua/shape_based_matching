@@ -949,7 +949,6 @@ public:
                 for(; c <= end_c-simd_step; c+=simd_step, parent_buf_ptr+=simd_step, buf_ptr+=simd_step){
                     mipp::Reg<uint8_t> src_v(parent_buf_ptr);
 
-                    // blend of mipp seems probmatic
                     auto result = mipp::blend(mipp::blend(zero8_v, const_score1, (side_mask_v & src_v) == zero8_v),
                                               const_score0, (hit_mask_v & src_v) == zero8_v);
                     result.store(buf_ptr);
@@ -1137,12 +1136,20 @@ public:
     void process(const std::vector<cv::Mat>& in_v, const std::vector<cv::Mat>& out_v){
 
     // sanity check
+    assert(!in_v.empty() && "empty input");
+    assert(!out_v.empty() && "empty output");
+
+    assert(!in_v[0].empty() && "input memory should be held by user");
+    assert(!out_v[0].empty() && "output memory should be held by user");
+
     if(!check_if_nodes_valid()){
         std::cout << "nodes are not compatible !!!" << std::endl;
         return;
     }
-    assert(nodes_[0]->input_num == in_v.size() && "first node is wrong");
-    assert(nodes_.back()->output_num == out_v.size() && "last node is wrong");
+    assert(nodes_[0]->input_num == in_v.size() &&
+            nodes_[0]->input_type == in_v[0].type() && "first node is not compatible");
+    assert(nodes_.back()->output_num == out_v.size() &&
+           nodes_.back()->output_type == out_v[0].type() && "last node is not compatible");
 
 #ifdef _OPENMP
 #pragma omp parallel num_threads(num_threads_)

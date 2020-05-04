@@ -283,9 +283,6 @@ void angle_test(string mode = "test"){
             Timer timer;
             const int times = 10;
             for(int i=0; i<times; i++)
-                detector.match_old(img, 90, ids);
-            timer.out("old");
-            for(int i=0; i<times; i++)
                 detector.match(img, 90, ids);
             timer.out("fusion");
         }

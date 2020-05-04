@@ -17,7 +17,7 @@ void gauss_test()
     Mat test_img = imread(prefix + "case1/test.png", cv::IMREAD_GRAYSCALE);
     assert(!test_img.empty() && "check your img path");
 
-    int padding = 2500;
+    int padding = 1500;
     cv::Mat padded_img = cv::Mat(test_img.rows + 2 * padding,
                                  test_img.cols + 2 * padding, test_img.type(), cv::Scalar::all(0));
     test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
@@ -73,7 +73,7 @@ void sobel_mag_test()
     Mat test_img = imread(prefix + "case1/test.png", cv::IMREAD_GRAYSCALE);
     assert(!test_img.empty() && "check your img path");
 
-    int padding = 500;
+    int padding = 1500;
     cv::Mat padded_img = cv::Mat(test_img.rows + 2 * padding,
                                  test_img.cols + 2 * padding, test_img.type(), cv::Scalar::all(0));
     test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
@@ -101,7 +101,7 @@ void sobel_mag_test()
     Sobel(img16, sobel_dy, CV_16S, 0, 1, 3, 1.0, 0.0, BORDER_CONSTANT);
     opencv_time += timer.out("sobel_dy");
 
-    std::cout << "opencv mag total time: " << opencv_time << std::endl;
+    std::cout << "opencv sobel total time: " << opencv_time << std::endl;
 
     std::vector<cv::Mat> in_v;
     in_v.push_back(img16);
@@ -119,14 +119,14 @@ void sobel_mag_test()
 
     timer.reset();
     manager.process(in_v, out_v);
-    timer.out("fusion mag");
+    timer.out("fusion sobel total time");
 
     Mat sobel_diff_x = cv::abs(sobel_dx - fusion_sobel_dx);
     Mat sobel_diff_y = cv::abs(sobel_dy - fusion_sobel_dy);
 
     imshow("diff_x", sobel_diff_x > 0);
     imshow("diff_y", sobel_diff_y > 0);
-    waitKey(0);
+//    waitKey(0);
 
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
@@ -140,7 +140,7 @@ void sobel_mag_test()
 
     timer.reset();
     manager.process(in_v, out_v);
-    timer.out("fusion mag");
+    timer.out("fusion mag total time");
 
     Mat opencv_mag;
 
@@ -148,7 +148,7 @@ void sobel_mag_test()
     sobel_dx.convertTo(sobel_dx, CV_32S);
     sobel_dy.convertTo(sobel_dy, CV_32S);
     opencv_mag = sobel_dx.mul(sobel_dx)  + sobel_dy.mul(sobel_dy);
-    double mag_time = timer.out("opencv mag");
+    double mag_time = timer.elapsed();
     std::cout << "opencv mag total time: " << opencv_time + mag_time << std::endl;
 
     Mat diff_mag = cv::abs(opencv_mag - fusion_mag);
