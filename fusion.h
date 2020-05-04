@@ -1091,10 +1091,10 @@ public:
     assert(nodes_[0]->input_num == in_v.size() && "first node is wrong");
     assert(nodes_.back()->output_num == out_v.size() && "last node is wrong");
 
-//#ifdef _OPENMP
-//#pragma omp parallel num_threads(num_threads_)
-//    {
-//#endif
+#ifdef _OPENMP
+#pragma omp parallel num_threads(num_threads_)
+    {
+#endif
     // prepare private buffer here
     std::vector<char*> filter_buffer(2);
     char* buffer_0 = new char[maxMemoFootprint_];
@@ -1104,9 +1104,9 @@ public:
 
     auto nodes_private = deep_copy_shared_ptr_vec(nodes_);
 
-//#ifdef _OPENMP
-//#pragma omp for nowait
-//#endif
+#ifdef _OPENMP
+#pragma omp for nowait
+#endif
     for (int roi_iter = 0; roi_iter < update_rois_.size(); ++roi_iter)
     {
         auto cur_roi = update_rois_[roi_iter];
@@ -1173,9 +1173,9 @@ public:
     }
     delete[] buffer_0;
     delete[] buffer_1;
-//#ifdef _OPENMP
-//    }
-//#endif
+#ifdef _OPENMP
+    }
+#endif
 
     }
     bool check_if_nodes_valid(){
