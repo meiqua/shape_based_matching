@@ -69,7 +69,7 @@ public:
     std::vector<cv::Mat> out_headers;
     int which_buffer = 0;
 
-    bool use_simd = false;
+    bool use_simd = true;
     virtual void update_simple(int start_r, int start_c, int end_r, int end_c) = 0;
     virtual void update_simd(int start_r, int start_c, int end_r, int end_c) = 0;
     void update(){
@@ -1239,7 +1239,7 @@ public:
     std::vector<cv::Rect> update_rois_;
     std::vector<std::shared_ptr<FilterNode>> nodes_;
     int tileRows_, tileCols_;
-    int num_threads_ = 8;
+    int num_threads_ = 4;
     int maxMemoFootprint_;
 };
 
