@@ -1168,6 +1168,7 @@ public:
     }
 
     void link_special_header(const cv::Rect &cur_roi) override {
+        out_headers.clear();
         for(int ori=0; ori<8; ori++){
             out_headers.push_back(buffer_[ori]);
         }
