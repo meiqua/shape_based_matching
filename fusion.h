@@ -957,6 +957,9 @@ public:
     }
     void update_simd(int start_r, int start_c, int end_r, int end_c) override {
         const int simd_step = mipp::N<int8_t>();
+        const mipp::Reg<uint8_t> const_score0 = scores[0];
+        const mipp::Reg<uint8_t> const_score1 = scores[1];
+        const mipp::Reg<uint8_t> zero8_v = uint8_t(0);
         for(int ori=0; ori<8; ori++) {
             const mipp::Reg<uint8_t> hit_mask_v = hit_mask[ori];
             const mipp::Reg<uint8_t> side_mask_v = side_mask[ori];
@@ -988,10 +991,6 @@ public:
     const uint8_t scores[2] = {4, 1};
     const uint8_t hit_mask[8] = { 1,   2, 4,  8,  16, 32, 64,  128};
     const uint8_t side_mask[8] = {130, 5, 10, 20, 40, 80, 160, 65};
-
-    const mipp::Reg<uint8_t> const_score0 = scores[0];
-    const mipp::Reg<uint8_t> const_score1 = scores[1];
-    const mipp::Reg<uint8_t> zero8_v = uint8_t(0);
 };
 
 class LinearizeTxTNode_8U_8U : public FilterNode {
