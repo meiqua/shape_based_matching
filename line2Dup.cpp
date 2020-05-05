@@ -1078,9 +1078,9 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         assert(cur_T % 2 == 0);
 
         // use old linear function will create those for us
-//        for(int ori=0; ori<8; ori++){
-//            lm_pyramid[cur_l][0][ori] = cv::Mat(cur_T*cur_T, imgCols/cur_T*imgRows/cur_T, CV_8U, cv::Scalar(0));
-//        }
+        for(int ori=0; ori<8; ori++){
+            lm_pyramid[cur_l][0][ori] = cv::Mat(cur_T*cur_T, imgCols/cur_T*imgRows/cur_T, CV_8U, cv::Scalar(0));
+        }
 
         sizes.push_back({imgCols, imgRows});
 
@@ -1102,29 +1102,16 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Spread1xnNode_8U_8U>(cur_T + 1));
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Spreadnx1Node_8U_8U>(cur_T + 1));
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Response1x1Node_8U_8U>());
-
-        // doesn't work now
-//        manager.get_nodes().push_back(std::make_shared<simple_fusion::LinearizeTxTNode_8U_8U>(cur_T, imgCols,
-//                                                                                              lm_pyramid[cur_l][0]));
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::LinearizeTxTNode_8U_8U>(cur_T, imgCols,
+                                                                                              lm_pyramid[cur_l][0]));
         manager.arrange(imgRows, imgCols);
 
         std::vector<cv::Mat> in_v;
         in_v.push_back(src);
 
-        std::vector<cv::Mat> out_v;
-        for(int i=0; i<8; i++){
-            cv::Mat response(imgRows, imgCols, CV_8U, cv::Scalar(0));
-            out_v.push_back(response);
-        }
+        std::vector<cv::Mat> out_v = lm_pyramid[cur_l][0];
         manager.process(in_v, out_v);
         timer.out("fusion time");
-
-#pragma omp parallel for num_threads(num_threads_)
-        for (int j = 0; j < 8; ++j){
-            linearize(out_v[j], lm_pyramid[cur_l][0][j], cur_T);
-        }
-
-        timer.out("linearize time");
     }
     // ----------------------------------------------------------------------
 

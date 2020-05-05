@@ -66,6 +66,10 @@ public:
     int padded_row = 0;
     int padded_col = 0;
 
+    // for linearize we need to know gobal index
+    int cur_row = 0;
+    int cur_col = 0;
+
     // for updates' memory address
     std::vector<cv::Mat> in_headers;
     std::vector<cv::Mat> out_headers;
@@ -1171,6 +1175,9 @@ public:
 
     void update_simple(int start_r, int start_c, int end_r, int end_c) override {
         for(int ori = 0; ori < 8; ori++){
+            int global_start_r = start_r + cur_row;
+            int global_start_c = start_c + cur_col;
+
             // assume cur_T = 4, row col of the linearized response_map:
             // int lrs = linearize_row_step;
             //       0            1            2            3             lrs - 1
@@ -1209,8 +1216,9 @@ public:
 
             // more codes, but less operation int the innermost loop
             assert(start_c % cur_T == 0);
-            int target_start_c = linearize_row_step * (start_r / cur_T) + start_c / cur_T;
-            int target_start_r = cur_T * (start_r % cur_T) + start_c % cur_T;
+            assert(cur_col % cur_T == 0);
+            int target_start_c = linearize_row_step * (global_start_r / cur_T) + global_start_c / cur_T;
+            int target_start_r = cur_T * (global_start_r % cur_T) + global_start_c % cur_T;
 
             for(int tileT_r = start_r; tileT_r < start_r + cur_T; ++tileT_r){
                 for (int tileT_c = start_c; tileT_c < start_c + cur_T; ++tileT_c){
@@ -1252,7 +1260,7 @@ public:
 class ProcessManager {
 public:
     ProcessManager(int tileRows = 32, int tileCols = 256): tileRows_(tileRows), tileCols_(tileCols) {}
-
+    void set_num_threads(int t){num_threads_ = t;}
     std::vector<std::shared_ptr<FilterNode>>& get_nodes(){return nodes_;}
 
     void arrange(int outRows, int outCols){
@@ -1417,6 +1425,9 @@ public:
                     cv::Mat out = out_ori(cur_roi);
                     nodes_private.back()->out_headers.push_back(out);
                 }
+            }else{ // assign global row / col to node
+                nodes_private.back()->cur_row = cur_roi.y;
+                nodes_private.back()->cur_col = cur_roi.x;
             }
         }
         { // some node may have special headers to link
@@ -1450,7 +1461,6 @@ public:
         }
         return is_valid;
     }
-    void set_num_threads(int t){num_threads_ = t;}
 
     std::vector<cv::Rect> update_rois_;
     std::vector<std::shared_ptr<FilterNode>> nodes_;
