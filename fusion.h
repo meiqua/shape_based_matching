@@ -99,7 +99,7 @@ public:
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             uint8_t *parent_buf_ptr = in_headers[0].ptr<uint8_t>(r, c);
-            int32_t *buf_ptr = out_headers[0].ptr<int32_t>(r - op_row/2, c - op_col/2);
+            int8_t *buf_ptr = out_headers[0].ptr<int8_t>(r - op_row/2, c - op_col/2);
             for(; c < end_c; c++, parent_buf_ptr++, buf_ptr++){
                 *buf_ptr = *parent_buf_ptr;
             }
