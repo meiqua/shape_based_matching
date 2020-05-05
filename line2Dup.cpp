@@ -1045,20 +1045,68 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 {
     std::vector<Match> matches;
 
-    // lm_pyramid sizes
-    // --------- provided by construction of response map, fusion version now
+    // --------- fusion version of response map creation
+
+    // results we want
     LinearMemoryPyramid lm_pyramid(pyramid_levels, std::vector<LinearMemories>(1, LinearMemories(8)));
     std::vector<Size> sizes;
 
-    // fusion version
     assert(source.channels() == 1 && "only gray img now");
     assert(mask.empty() && "mask not support yet");
 
+    // no need to crop now, we deal with it internally
     const int lcm_Ts = least_mul_of_Ts(T_at_level);
     const int biggest_imgRows = source.rows/lcm_Ts*lcm_Ts;
     const int biggest_imgCols = source.cols/lcm_Ts*lcm_Ts;
-    // ----------------------------------------------------------------------
 
+    const int tileRows = 32;
+    const int tileCols = 256;
+
+    const int32_t mag_thresh_l2 = int32_t(res_map_mag_thresh*res_map_mag_thresh);
+
+    cv::Mat pyrdown_src;
+    for(int cur_l = 0; cur_l<T_at_level.size(); cur_l++){
+        const bool need_pyr = cur_l < T_at_level.size() - 1;
+
+        const int imgRows = biggest_imgRows >> cur_l;
+        const int imgCols = biggest_imgCols >> cur_l;
+
+        const int cur_T = T_at_level[cur_l];
+        assert(cur_T % 2 == 0);
+
+        for(int ori=0; ori<8; ori++){
+            lm_pyramid[cur_l][0][ori] = cv::Mat(cur_T*cur_T, imgCols/cur_T*imgRows/cur_T, CV_8U, cv::Scalar(0));
+        }
+
+        sizes.push_back({imgCols, imgRows});
+
+        cv::Mat src;
+        if(cur_l == 0) src = source;
+        else src = pyrdown_src;
+
+        if(need_pyr) pyrdown_src = cv::Mat(imgRows/2, imgCols/2, CV_16U, cv::Scalar(0));
+
+        simple_fusion::ProcessManager manager(tileRows, tileCols);
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::Gauss1x5Node_8U_32S_4bit_larger>());
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::Gauss5x1withPyrdownNode_32S_16S_4bit_smaller>(
+                                          pyrdown_src, need_pyr));
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::MagPhaseQuant1x1Node_16S_8U>(mag_thresh_l2));
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::Hist3x3Node_8U_8U>());
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::Spread1xnNode_8U_8U>(cur_T + 1));
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::Spreadnx1Node_8U_8U>(cur_T + 1));
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::Response1x1Node_8U_8U>());
+        manager.get_nodes().push_back(std::make_shared<simple_fusion::LinearizeTxTNode_8U_8U>(cur_T, imgCols));
+        manager.arrange(imgRows, imgCols);
+
+        std::vector<cv::Mat> in_v;
+        in_v.push_back(src);
+
+        std::vector<cv::Mat> out_v = lm_pyramid[cur_l][0];
+        manager.process(in_v, out_v);
+    }
+    // ----------------------------------------------------------------------
 
     if (class_ids.empty()){
         // Match all templates

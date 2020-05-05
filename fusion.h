@@ -1244,6 +1244,9 @@ public:
 class ProcessManager {
 public:
     ProcessManager(int tileRows = 32, int tileCols = 256): tileRows_(tileRows), tileCols_(tileCols) {}
+
+    std::vector<std::shared_ptr<FilterNode>>& get_nodes(){return nodes_;}
+
     void arrange(int outRows, int outCols){
         if(nodes_.empty()){
             std::cout << "no nodes yet" << std::endl;
@@ -1321,10 +1324,10 @@ public:
     assert(!in_v[0].empty() && "input memory should be held by user");
     assert(!out_v[0].empty() && "output memory should be held by user");
 
-    if(!check_if_nodes_valid()){
-        std::cout << "nodes are not compatible !!!" << std::endl;
-        return;
-    }
+//    if(!check_if_nodes_valid()){
+//        std::cout << "nodes are not compatible !!!" << std::endl;
+//        return;
+//    }
     assert(nodes_[0]->input_num == in_v.size() &&
             nodes_[0]->input_type == in_v[0].type() && "first node is not compatible");
     assert(nodes_.back()->output_num == out_v.size() &&
