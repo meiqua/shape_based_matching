@@ -491,7 +491,7 @@ public:
 
 class MagPhaseQuant1x1Node_16S_8U : public FilterNode {
 public:
-    MagPhaseQuant1x1Node_16S_8U():
+    MagPhaseQuant1x1Node_16S_8U(int thresh = 60*60): mag_thresh_l2(thresh),
         FilterNode("mag_phase_quant1x1", CV_16S, 2, CV_8U, 1, 1, 1){}
     void update_simple(int start_r, int start_c, int end_r, int end_c) override {
         for(int r = start_r; r < end_r; r++){
@@ -521,6 +521,17 @@ public:
 
     void update_simd(int start_r, int start_c, int end_r, int end_c) override {
         const int simd_step = mipp::N<int32_t>();
+        const mipp::Reg<int16_t> ZERO16_v = int16_t(0);
+        const mipp::Reg<int32_t> ZERO32_v = int32_t(0);
+        const mipp::Reg<int32_t> ONE32_v = int32_t(1);
+        const mipp::Reg<int32_t> TWO32_v = int32_t(2);
+        const mipp::Reg<int32_t> THREE32_v = int32_t(3);
+        const mipp::Reg<int32_t> FOUR32_v = int32_t(4);
+        const mipp::Reg<int32_t> EIGHT32_v = int32_t(8);
+        const mipp::Reg<int32_t> TG1125_v = TG1125;
+        const mipp::Reg<int32_t> TG3375_v = TG3375;
+        const mipp::Reg<int32_t> TG5625_v = TG5625;
+        const mipp::Reg<int32_t> TG7875_v = TG7875;
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
@@ -584,9 +595,9 @@ public:
         }
     }
 
-    void set_mag_thresh(int thresh){mag_thresh_l2 = thresh * thresh;}
+    void set_mag_thresh(int thresh){mag_thresh_l2 = thresh;}
     std::shared_ptr<FilterNode> clone() const override {
-        std::shared_ptr<FilterNode> node_new = std::make_shared<MagPhaseQuant1x1Node_16S_8U>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<MagPhaseQuant1x1Node_16S_8U>(mag_thresh_l2);
         node_new->padded_row = padded_row;
         node_new->padded_col = padded_col;
         node_new->which_buffer = which_buffer;
@@ -597,23 +608,11 @@ public:
     const int32_t TG3375 = std::round(std::tan(33.75/180*CV_PI)*(1<<15));
     const int32_t TG5625 = std::round(std::tan(56.25/180*CV_PI)*(1<<15));
     const int32_t TG7875 = std::round(std::tan(78.75/180*CV_PI)*(1<<15));
-
-    const mipp::Reg<int16_t> ZERO16_v = int16_t(0);
-    const mipp::Reg<int32_t> ZERO32_v = int32_t(0);
-    const mipp::Reg<int32_t> ONE32_v = int32_t(1);
-    const mipp::Reg<int32_t> TWO32_v = int32_t(2);
-    const mipp::Reg<int32_t> THREE32_v = int32_t(3);
-    const mipp::Reg<int32_t> FOUR32_v = int32_t(4);
-    const mipp::Reg<int32_t> EIGHT32_v = int32_t(8);
-    const mipp::Reg<int32_t> TG1125_v = TG1125;
-    const mipp::Reg<int32_t> TG3375_v = TG3375;
-    const mipp::Reg<int32_t> TG5625_v = TG5625;
-    const mipp::Reg<int32_t> TG7875_v = TG7875;
 };
 
 class MagPhaseQuantShift1x1Node_16S_8U : public FilterNode {
 public:
-    MagPhaseQuantShift1x1Node_16S_8U():
+    MagPhaseQuantShift1x1Node_16S_8U(int thresh = 60*60): mag_thresh_l2(thresh),
         FilterNode("mag_phase_quant1x1", CV_16S, 2, CV_8U, 1, 1, 1){}
     void update_simple(int start_r, int start_c, int end_r, int end_c) override {
         for(int r = start_r; r < end_r; r++){
@@ -642,6 +641,17 @@ public:
     }
     void update_simd(int start_r, int start_c, int end_r, int end_c) override {
         const int simd_step = mipp::N<int32_t>();
+        const mipp::Reg<int16_t> ZERO16_v = int16_t(0);
+        const mipp::Reg<int32_t> ZERO32_v = int32_t(0);
+        const mipp::Reg<int32_t> ONE32_v = int32_t(1);
+        const mipp::Reg<int32_t> TWO32_v = int32_t(2);
+        const mipp::Reg<int32_t> THREE32_v = int32_t(3);
+        const mipp::Reg<int32_t> FOUR32_v = int32_t(4);
+        const mipp::Reg<int32_t> EIGHT32_v = int32_t(8);
+        const mipp::Reg<int32_t> TG1125_v = TG1125;
+        const mipp::Reg<int32_t> TG3375_v = TG3375;
+        const mipp::Reg<int32_t> TG5625_v = TG5625;
+        const mipp::Reg<int32_t> TG7875_v = TG7875;
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
@@ -708,9 +718,9 @@ public:
             }
         }
     }
-    void set_mag_thresh(int thresh){mag_thresh_l2 = thresh * thresh;}
+    void set_mag_thresh(int thresh){mag_thresh_l2 = thresh;}
     std::shared_ptr<FilterNode> clone() const override {
-        std::shared_ptr<FilterNode> node_new = std::make_shared<MagPhaseQuantShift1x1Node_16S_8U>();
+        std::shared_ptr<FilterNode> node_new = std::make_shared<MagPhaseQuantShift1x1Node_16S_8U>(mag_thresh_l2);
         node_new->padded_row = padded_row;
         node_new->padded_col = padded_col;
         node_new->which_buffer = which_buffer;
@@ -721,18 +731,6 @@ public:
     const int32_t TG3375 = std::round(std::tan(33.75/180*CV_PI)*(1<<15));
     const int32_t TG5625 = std::round(std::tan(56.25/180*CV_PI)*(1<<15));
     const int32_t TG7875 = std::round(std::tan(78.75/180*CV_PI)*(1<<15));
-
-    const mipp::Reg<int16_t> ZERO16_v = int16_t(0);
-    const mipp::Reg<int32_t> ZERO32_v = int32_t(0);
-    const mipp::Reg<int32_t> ONE32_v = int32_t(1);
-    const mipp::Reg<int32_t> TWO32_v = int32_t(2);
-    const mipp::Reg<int32_t> THREE32_v = int32_t(3);
-    const mipp::Reg<int32_t> FOUR32_v = int32_t(4);
-    const mipp::Reg<int32_t> EIGHT32_v = int32_t(8);
-    const mipp::Reg<int32_t> TG1125_v = TG1125;
-    const mipp::Reg<int32_t> TG3375_v = TG3375;
-    const mipp::Reg<int32_t> TG5625_v = TG5625;
-    const mipp::Reg<int32_t> TG7875_v = TG7875;
 };
 
 class Hist3x3Node_8U_8U : public FilterNode {
