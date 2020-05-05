@@ -497,7 +497,7 @@ public:
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
-            int16_t *parent_buf_ptr_1 = in_headers[0].ptr<int16_t>(r, c);
+            int16_t *parent_buf_ptr_1 = in_headers[1].ptr<int16_t>(r, c);
             uint8_t *buf_ptr = out_headers[0].ptr<uint8_t>(r, c);
             for(; c < end_c; c++, parent_buf_ptr_0++, parent_buf_ptr_1++, buf_ptr++){
                 int32_t dx = int32_t(*parent_buf_ptr_0);
@@ -514,6 +514,8 @@ public:
 
                     label = (label==0 || is_0_90) ? label: 8-label;
                     *buf_ptr = label;
+                }else{
+                    *buf_ptr = 0;
                 }
             }
         }
@@ -535,7 +537,7 @@ public:
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
-            int16_t *parent_buf_ptr_1 = in_headers[0].ptr<int16_t>(r, c);
+            int16_t *parent_buf_ptr_1 = in_headers[1].ptr<int16_t>(r, c);
             uint8_t *buf_ptr = out_headers[0].ptr<uint8_t>(r, c);
             for(; c <= end_c - 4*simd_step; c+=simd_step, parent_buf_ptr_0+=simd_step,
                 parent_buf_ptr_1+=simd_step, buf_ptr+=simd_step){
@@ -573,6 +575,9 @@ public:
                     mipp::Reg<int8_t> label8_v = mipp::pack<int16_t, int8_t>(label16_v, ZERO16_v);
 
                     label8_v.store((int8_t*)buf_ptr);
+                }else{
+                    mipp::Reg<int8_t> label8_v = int8_t(0);
+                    label8_v.store((int8_t*)buf_ptr);
                 }
             }
             for(; c < end_c; c++, parent_buf_ptr_0++, parent_buf_ptr_1++, buf_ptr++){
@@ -590,6 +595,8 @@ public:
 
                     label = (label==0 || is_0_90) ? label: 8-label;
                     *buf_ptr = label;
+                }else{
+                    *buf_ptr = 0;
                 }
             }
         }
@@ -618,7 +625,7 @@ public:
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
-            int16_t *parent_buf_ptr_1 = in_headers[0].ptr<int16_t>(r, c);
+            int16_t *parent_buf_ptr_1 = in_headers[1].ptr<int16_t>(r, c);
             int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r, c);
             for(; c < end_c; c++, parent_buf_ptr_0++, parent_buf_ptr_1++, buf_ptr++){
                 int32_t dx = int32_t(*parent_buf_ptr_0);
@@ -635,6 +642,8 @@ public:
 
                     label = (label==0 || is_0_90) ? label: 8-label;
                     *buf_ptr = uint8_t(uint8_t(1)<<label);
+                }else{
+                    *buf_ptr = 0;
                 }
             }
         }
@@ -655,7 +664,7 @@ public:
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
-            int16_t *parent_buf_ptr_1 = in_headers[0].ptr<int16_t>(r, c);
+            int16_t *parent_buf_ptr_1 = in_headers[1].ptr<int16_t>(r, c);
             uint8_t *buf_ptr = out_headers[0].ptr<uint8_t>(r, c);
             for(; c <= end_c - 4*simd_step; c+=simd_step, parent_buf_ptr_0+=simd_step,
                 parent_buf_ptr_1+=simd_step, buf_ptr+=simd_step){
@@ -697,6 +706,9 @@ public:
                     for(int j=0; j<simd_step; j++){
                         buf_ptr[j] = uint8_t(uint8_t(1)<<temp_result[j]);
                     }
+                }else{
+                    mipp::Reg<int8_t> label8_v = int8_t(0);
+                    label8_v.store((int8_t*)buf_ptr);
                 }
             }
             for(; c < end_c; c++, parent_buf_ptr_0++, parent_buf_ptr_1++, buf_ptr++){
@@ -714,6 +726,8 @@ public:
 
                     label = (label==0 || is_0_90) ? label: 8-label;
                     *buf_ptr = uint8_t(uint8_t(1)<<label);
+                }else{
+                    *buf_ptr = 0;
                 }
             }
         }

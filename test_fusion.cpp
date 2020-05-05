@@ -222,7 +222,6 @@ void sobel_mag_phase_quant_test()
             }else{
                 quant_r[c] = 0;
             }
-
         }
     }
     opencv_time += timer.out("opencv quant");
@@ -248,6 +247,31 @@ void sobel_mag_phase_quant_test()
 
     Mat quant_diff = fusion_quant != quantized_unfiltered;
     imshow("quant diff", quant_diff);
+//    waitKey(0);
+
+    manager.nodes_.clear();
+    manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
+    manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
+    manager.nodes_.push_back(std::make_shared<simple_fusion::MagPhaseQuantShift1x1Node_16S_8U>(thresh*thresh));
+    manager.arrange(img.rows, img.cols);
+
+    opencv_angle.convertTo(quantized_unfiltered, CV_8U, 16.0 / 360.0);
+    for (int r = 1; r < opencv_angle.rows - 1; ++r)
+    {
+        uchar *quant_r = quantized_unfiltered.ptr<uchar>(r);
+        int32_t *mag_r = opencv_mag.ptr<int32_t>(r);
+        for (int c = 1; c < opencv_angle.cols - 1; ++c)
+        {
+            if(mag_r[c] > thresh * thresh){
+                quant_r[c] &= 7;
+                quant_r[c] = 1 << quant_r[c];
+            }else{
+                quant_r[c] = 0;
+            }
+        }
+    }
+    Mat quant_shift_diff = fusion_quant != quantized_unfiltered;
+    imshow("quant shift diff", quant_shift_diff);
     waitKey(0);
 
     std::cout << "test end" << std::endl;
