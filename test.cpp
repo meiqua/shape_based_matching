@@ -257,7 +257,7 @@ void angle_test(string mode = "test"){
         Mat test_img = imread(prefix+"case1/test.png", cv::IMREAD_GRAYSCALE);
         assert(!test_img.empty() && "check your img path");
 
-        int padding = 500;
+        int padding = 1500;
         cv::Mat padded_img = cv::Mat(test_img.rows + 2*padding,
                                      test_img.cols + 2*padding, test_img.type(), cv::Scalar::all(0));
         test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));

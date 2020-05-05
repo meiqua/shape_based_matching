@@ -1079,7 +1079,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
         // use old linear function will create those for us
         for(int ori=0; ori<8; ori++){
-            lm_pyramid[cur_l][0][ori] = cv::Mat(cur_T*cur_T, imgCols/cur_T*imgRows/cur_T, CV_8U, cv::Scalar(0));
+            lm_pyramid[cur_l][0][ori] = cv::Mat(cur_T*cur_T, imgCols/cur_T*imgRows/cur_T, CV_8U);
         }
 
         sizes.push_back({imgCols, imgRows});
@@ -1088,7 +1088,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         if(cur_l == 0) src = source;
         else src = pyrdown_src;
 
-        if(need_pyr) pyrdown_src = cv::Mat(imgRows/2, imgCols/2, CV_8U, cv::Scalar(0));
+        if(need_pyr) pyrdown_src = cv::Mat(imgRows/2, imgCols/2, CV_8U);
 
         simple_fusion::ProcessManager manager(tileRows, tileCols);
         manager.set_num_threads(num_threads_);
