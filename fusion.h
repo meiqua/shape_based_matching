@@ -1157,9 +1157,16 @@ public:
 
 class LinearizeTxTNode_8U_8U : public FilterNode {
 public:
-    LinearizeTxTNode_8U_8U(int cur_T_temp, int imgCols_temp) :
-        FilterNode("linearizeTxT", CV_8U, 1, CV_8U, 8, 1, 1), cur_T(cur_T_temp), imgCols(imgCols_temp){
+    LinearizeTxTNode_8U_8U(int cur_T_temp, int imgCols_temp, std::vector<cv::Mat> buffer) : buffer_(buffer),
+        FilterNode("linearizeTxT", CV_8U, 8, CV_8U, 8, 1, 1), cur_T(cur_T_temp), imgCols(imgCols_temp){
         linearize_row_step = imgCols / cur_T;
+        have_special_headers = true;
+    }
+
+    void link_special_header(const cv::Rect &cur_roi) override {
+        for(int ori=0; ori<8; ori++){
+            out_headers.push_back(buffer_[ori]);
+        }
     }
 
     void update_simple(int start_r, int start_c, int end_r, int end_c) override {
@@ -1216,7 +1223,7 @@ public:
 
                     // Inner two loops copy every T-th pixel into the linear memory
                     for(int r = tileT_r; r < end_r; r += cur_T, memory += linearize_row_step){
-                        uint8_t *parent_buf_ptr = in_headers[ori].ptr<uint8_t>(r, 0, ori);
+                        uint8_t *parent_buf_ptr = in_headers[ori].ptr<uint8_t>(r);
                         uint8_t *local_memory = memory;
                         for (int c = tileT_c; c < end_c; c += cur_T, local_memory++)
                             *local_memory = parent_buf_ptr[c];
@@ -1230,7 +1237,7 @@ public:
         update_simple(start_r, start_c, end_r, end_c);
     }
     std::shared_ptr<FilterNode> clone() const override {
-        std::shared_ptr<FilterNode> node_new = std::make_shared<LinearizeTxTNode_8U_8U>(cur_T, imgCols);
+        std::shared_ptr<FilterNode> node_new = std::make_shared<LinearizeTxTNode_8U_8U>(cur_T, imgCols, buffer_);
         node_new->padded_row = padded_row;
         node_new->padded_col = padded_col;
         node_new->which_buffer = which_buffer;
@@ -1239,6 +1246,7 @@ public:
     int cur_T;
     int imgCols;
     int linearize_row_step;
+    std::vector<cv::Mat> buffer_;
 };
 
 class ProcessManager {
@@ -1403,10 +1411,12 @@ public:
             }
         }
         { // link last out to out_v
-            nodes_private.back()->out_headers.clear();
-            for(auto& out_ori: out_v){
-                cv::Mat out = out_ori(cur_roi);
-                nodes_private.back()->out_headers.push_back(out);
+            if(nodes_private.back()->op_name != "linearizeTxT"){ // linearize is a very special operations
+                nodes_private.back()->out_headers.clear();
+                for(auto& out_ori: out_v){
+                    cv::Mat out = out_ori(cur_roi);
+                    nodes_private.back()->out_headers.push_back(out);
+                }
             }
         }
         { // some node may have special headers to link

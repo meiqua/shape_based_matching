@@ -1084,7 +1084,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         if(cur_l == 0) src = source;
         else src = pyrdown_src;
 
-        if(need_pyr) pyrdown_src = cv::Mat(imgRows/2, imgCols/2, CV_16U, cv::Scalar(0));
+        if(need_pyr) pyrdown_src = cv::Mat(imgRows/2, imgCols/2, CV_8U, cv::Scalar(0));
 
         simple_fusion::ProcessManager manager(tileRows, tileCols);
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Gauss1x5Node_8U_32S_4bit_larger>());
@@ -1097,14 +1097,24 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Spread1xnNode_8U_8U>(cur_T + 1));
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Spreadnx1Node_8U_8U>(cur_T + 1));
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Response1x1Node_8U_8U>());
-        manager.get_nodes().push_back(std::make_shared<simple_fusion::LinearizeTxTNode_8U_8U>(cur_T, imgCols));
+
+        // doesn't work now
+//        manager.get_nodes().push_back(std::make_shared<simple_fusion::LinearizeTxTNode_8U_8U>(cur_T, imgCols,
+//                                                                                              lm_pyramid[cur_l][0]));
         manager.arrange(imgRows, imgCols);
 
         std::vector<cv::Mat> in_v;
         in_v.push_back(src);
 
-        std::vector<cv::Mat> out_v = lm_pyramid[cur_l][0];
+        std::vector<cv::Mat> out_v;
+        for(int i=0; i<8; i++){
+            cv::Mat response(imgRows, imgCols, CV_8U, cv::Scalar(0));
+            out_v.push_back(response);
+        }
         manager.process(in_v, out_v);
+
+        for (int j = 0; j < 8; ++j)
+            linearize(out_v[j], lm_pyramid[cur_l][0][j], cur_T);
     }
     // ----------------------------------------------------------------------
 
