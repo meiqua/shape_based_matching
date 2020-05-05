@@ -1,5 +1,6 @@
 #include "line2Dup.h"
 #include <iostream>
+#include "fusion.h"
 
 using namespace std;
 using namespace cv;

@@ -67,6 +67,65 @@ void gauss_test()
     std::cout << "test end" << std::endl;
 }
 
+void gauss_pyrdown_test()
+{
+    // only support gray img now
+    Mat test_img = imread(prefix + "case1/test.png", cv::IMREAD_GRAYSCALE);
+    assert(!test_img.empty() && "check your img path");
+
+    int padding = 500;
+    cv::Mat padded_img = cv::Mat(test_img.rows + 2 * padding,
+                                 test_img.cols + 2 * padding, test_img.type(), cv::Scalar::all(0));
+    test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
+
+    int stride = 16;
+    int n = padded_img.rows / stride;
+    int m = padded_img.cols / stride;
+    Rect roi(0, 0, stride * m, stride * n);
+    Mat img = padded_img(roi).clone();
+    assert(img.isContinuous());
+
+    std::cout << "test img size: " << img.rows * img.cols << std::endl
+              << std::endl;
+
+    Timer timer;
+    double opencv_time = 0;
+    static const int KERNEL_SIZE = 5;
+    Mat smoothed;
+    GaussianBlur(img, smoothed, Size(KERNEL_SIZE, KERNEL_SIZE), 0, 0, BORDER_CONSTANT);
+    opencv_time += timer.out("GaussianBlur");
+
+    std::cout << "opencv total time: " << opencv_time << std::endl;
+
+    std::vector<cv::Mat> in_v;
+    in_v.push_back(img);
+    std::vector<cv::Mat> out_v;
+    Mat mag_fusion(img.size(), CV_16S, cv::Scalar(0));
+    out_v.push_back(mag_fusion);
+
+    cv::Mat pyr_down_img(img.rows/2, img.cols/2, CV_8U, cv::Scalar(0));
+    simple_fusion::ProcessManager manager;
+    manager.nodes_.clear();
+    manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss1x5Node_8U_32S_4bit_larger>());
+    manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss5x1withPyrdownNode_32S_16S_4bit_smaller>(
+                                 pyr_down_img));
+    manager.arrange(img.rows, img.cols);
+
+    timer.reset();
+    manager.process(in_v, out_v);
+    timer.out("fusion mag");
+
+    mag_fusion.convertTo(mag_fusion, CV_8U);
+    Mat mag_diff = cv::abs(smoothed - mag_fusion);
+
+    imshow("img", img);
+    imshow("pyr_down_img", pyr_down_img);
+    imshow("diff", mag_diff > 1);  // we may have 1 diff due to quantization
+    waitKey(0);
+
+    std::cout << "test end" << std::endl;
+}
+
 void sobel_mag_test()
 {
     // only support gray img now
@@ -827,10 +886,11 @@ void sobel_mag_phase_quant_hist_spread_response_test()
 int main()
 {
 //    gauss_test();
+    gauss_pyrdown_test();
 //    sobel_mag_test();
 //    sobel_mag_phase_quant_test();
 //    sobel_mag_phase_quant_hist_test();
 //    sobel_mag_phase_quant_hist_spread_test();
-    sobel_mag_phase_quant_hist_spread_response_test();
+//    sobel_mag_phase_quant_hist_spread_response_test();
     return 0;
 }

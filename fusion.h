@@ -71,6 +71,9 @@ public:
     std::vector<cv::Mat> out_headers;
     int which_buffer = 0;
 
+    bool have_special_headers = false;
+    virtual void link_special_header(const cv::Rect& cur_roi){}
+
     bool use_simd = true;
     virtual void update_simple(int start_r, int start_c, int end_r, int end_c) = 0;
     virtual void update_simd(int start_r, int start_c, int end_r, int end_c) = 0;
@@ -298,6 +301,165 @@ public:
     const int gauss_size = 5;
     int32_t gauss_knl_uint32[5];
 };
+
+class Gauss5x1withPyrdownNode_32S_16S_4bit_smaller : public FilterNode {
+public:
+    Gauss5x1withPyrdownNode_32S_16S_4bit_smaller(cv::Mat down_img, bool need_pyr = true):
+        down_img_(down_img), need_pyr_(need_pyr), FilterNode("gauss5x1", CV_32S, 1, CV_16S, 1, 5, 1){
+        cv::Mat double_gauss = cv::getGaussianKernel(gauss_size, 0, CV_64F);
+        for(int i=0; i<gauss_size; i++){
+            gauss_knl_uint32[i] = int32_t(double_gauss.at<double>(i, 0) * (1<<gauss_quant_bit));
+        }
+
+        if(need_pyr_){
+            have_special_headers = true;
+        }
+    }
+    void update_simple(int start_r, int start_c, int end_r, int end_c) override {
+        for(int r = start_r; r < end_r; r++){
+            bool is_even_row = r % 2;
+            int r_down = r / 2;
+            bool is_r_in_down_roi = (r >= padded_row && r < end_r - padded_row);
+
+            int c = start_c;
+            int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
+
+            int32_t* parent_buf_ptr[gauss_size];
+            int32_t** parent_buf_center = parent_buf_ptr + gauss_size/2;
+            parent_buf_center[0] = in_headers[0].ptr<int32_t>(r, c);
+            for(int i=1; i<=gauss_size/2; i++){
+                parent_buf_center[i] = in_headers[0].ptr<int32_t>(r+i, c);
+                parent_buf_center[-i] = in_headers[0].ptr<int32_t>(r-i, c);
+            }
+            for (; c < end_c; c++, buf_ptr++){
+                int32_t local_sum = gauss_knl_uint32[gauss_size/2] * (*(parent_buf_center[0]));
+                int gauss_knl_idx = gauss_size/2 + 1;
+                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
+                    local_sum += gauss_knl_uint32[gauss_knl_idx] *
+                            (*(parent_buf_center[i]) + *(parent_buf_center[-i]));
+                }
+                *buf_ptr = int16_t(local_sum >> (2*gauss_quant_bit));
+
+                for(int i=0; i<gauss_size; i++){
+                    parent_buf_ptr[i]++;
+                }
+
+                if(need_pyr_){
+                    bool is_even_col = c % 2;
+                    int c_down = c / 2;
+                    bool is_c_in_down_roi = (c >= padded_col && c < end_c - padded_col);
+                    if(is_even_row && is_even_col && is_r_in_down_roi && is_c_in_down_roi){
+                        out_headers[1].at<uint8_t>(r_down, c_down) = uint8_t(*buf_ptr);
+                    }
+                }
+
+            }
+        }
+    }
+
+    void update_simd(int start_r, int start_c, int end_r, int end_c) override {
+        const int simd_step = mipp::N<int32_t>();
+        const mipp::Reg<int32_t> zero32_v = int32_t(0);
+        for(int r = start_r; r < end_r; r++){
+            bool is_even_row = r % 2;
+            int r_down = r / 2;
+            bool is_r_in_down_roi = (r >= padded_row && r < end_r - padded_row);
+
+            int c = start_c;
+            int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
+
+            int32_t* parent_buf_ptr[gauss_size];
+            int32_t** parent_buf_center = parent_buf_ptr + gauss_size/2;
+            parent_buf_center[0] = in_headers[0].ptr<int32_t>(r, c);
+            for(int i=1; i<=gauss_size/2; i++){
+                parent_buf_center[i] = in_headers[0].ptr<int32_t>(r+i, c);
+                parent_buf_center[-i] = in_headers[0].ptr<int32_t>(r-i, c);
+            }
+            for (; c <= end_c - 2*simd_step; c += simd_step, buf_ptr += simd_step){
+                mipp::Reg<int32_t> gauss_coff0(gauss_knl_uint32[gauss_size/2]);
+                mipp::Reg<int32_t> src32_v0(parent_buf_center[0]);
+                mipp::Reg<int32_t> local_sum = gauss_coff0 * src32_v0;
+                int gauss_knl_idx = gauss_size/2 + 1;
+                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
+                    mipp::Reg<int32_t> gauss_coff(gauss_knl_uint32[gauss_knl_idx]);
+                    mipp::Reg<int32_t> src32_v1(parent_buf_center[i]);
+                    mipp::Reg<int32_t> src32_v2(parent_buf_center[-i]);
+
+                    local_sum += gauss_coff * (src32_v1 + src32_v2);
+                }
+                local_sum >>= (2*gauss_quant_bit);
+
+                mipp::Reg<int16_t> local_sum_int16 = mipp::pack<int32_t,int16_t>(local_sum, zero32_v);
+                local_sum_int16.store(buf_ptr);
+
+                for(int i=0; i<gauss_size; i++){
+                    parent_buf_ptr[i] += simd_step;
+                }
+
+                if(need_pyr_){
+                    int16_t *buf_ptr_local = buf_ptr;
+                    for(int c_local = c; c_local < c + simd_step; c_local++, buf_ptr_local++){
+                        bool is_even_col = c_local % 2;
+                        int c_down = c_local / 2;
+                        bool is_c_in_down_roi = (c_local >= padded_col && c_local < end_c - padded_col);
+                        if(is_even_row && is_even_col && is_r_in_down_roi && is_c_in_down_roi){
+                            down_img_.at<uint8_t>(r_down, c_down) = uint8_t(*buf_ptr_local);
+                        }
+                    }
+                }
+            }
+            for (; c < end_c; c++, buf_ptr++){
+                int32_t local_sum = gauss_knl_uint32[gauss_size/2] * (*(parent_buf_center[0]));
+                int gauss_knl_idx = gauss_size/2 + 1;
+                for(int i=1; i<=gauss_size/2; i++, gauss_knl_idx++){
+                    local_sum += gauss_knl_uint32[gauss_knl_idx] *
+                            (*(parent_buf_center[i]) + *(parent_buf_center[-i]));
+                }
+                *buf_ptr = int16_t(local_sum >> (2*gauss_quant_bit));
+
+                for(int i=0; i<gauss_size; i++){
+                    parent_buf_ptr[i]++;
+                }
+
+                if(need_pyr_){
+                    bool is_even_col = c % 2;
+                    int c_down = c / 2;
+                    bool is_c_in_down_roi = (c >= padded_col && c < end_c - padded_col);
+                    if(is_even_row && is_even_col && is_r_in_down_roi && is_c_in_down_roi){
+                        out_headers[1].at<uint8_t>(r_down, c_down) = uint8_t(*buf_ptr);
+                    }
+                }
+            }
+        }
+    }
+    std::shared_ptr<FilterNode> clone() const override {
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Gauss5x1withPyrdownNode_32S_16S_4bit_smaller>(
+                   down_img_, need_pyr_);
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
+    }
+
+    void link_special_header(const cv::Rect &cur_roi) override {
+        auto roi_down = cur_roi;
+        roi_down.x /= 2;
+        roi_down.y /= 2;
+        roi_down.width /= 2;
+        roi_down.height /= 2;
+
+        assert(out_headers.size() == 1 && "sanity check");
+        out_headers.push_back(down_img_(roi_down));
+    }
+
+    cv::Mat down_img_;
+    void set_need_pyr(bool need){need_pyr_ = need;}
+    bool need_pyr_ = true;
+    const int gauss_quant_bit = 4; // should be larger if gauss_size is larger
+    const int gauss_size = 5;
+    int32_t gauss_knl_uint32[5];
+};
+
 
 class Sobel1x3SxxSyxNode_16S_16S : public FilterNode {
 public:
@@ -1242,6 +1404,13 @@ public:
             for(auto& out_ori: out_v){
                 cv::Mat out = out_ori(cur_roi);
                 nodes_private.back()->out_headers.push_back(out);
+            }
+        }
+        { // some node may have special headers to link
+            for(auto& node: nodes_private){
+                if(node->have_special_headers){
+                    node->link_special_header(cur_roi);
+                }
             }
         }
 
