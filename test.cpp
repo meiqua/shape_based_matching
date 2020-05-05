@@ -277,15 +277,9 @@ void angle_test(string mode = "test"){
 
         std::cout << "test img size: " << img.rows * img.cols << std::endl << std::endl;
 
-        std::vector<line2Dup::Match> matches = detector.match(img, 90, ids);;
-
-        {
-            Timer timer;
-            const int times = 10;
-            for(int i=0; i<times; i++)
-                detector.match(img, 90, ids);
-            timer.out("fusion");
-        }
+        Timer timer;
+        std::vector<line2Dup::Match> matches = detector.match(img, 90, ids);
+        timer.out("match total time");
 
         if(img.channels() == 1) cvtColor(img, img, CV_GRAY2BGR);
 

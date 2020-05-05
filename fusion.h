@@ -1450,6 +1450,7 @@ public:
         }
         return is_valid;
     }
+    void set_num_threads(int t){num_threads_ = t;}
 
     std::vector<cv::Rect> update_rois_;
     std::vector<std::shared_ptr<FilterNode>> nodes_;

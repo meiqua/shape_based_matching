@@ -1043,6 +1043,7 @@ static int least_mul_of_Ts(const std::vector<int>& T_at_level){
 
 std::vector<Match> Detector::match(Mat source, float threshold, const std::vector<string> &class_ids, const Mat mask) const
 {
+    Timer timer;
     std::vector<Match> matches;
 
     // --------- fusion version of response map creation
@@ -1061,11 +1062,13 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
     const int tileRows = 32;
     const int tileCols = 256;
+    const int num_threads_ = 4;
 
     const int32_t mag_thresh_l2 = int32_t(res_map_mag_thresh*res_map_mag_thresh);
 
     cv::Mat pyrdown_src;
     for(int cur_l = 0; cur_l<T_at_level.size(); cur_l++){
+        timer.reset();
         const bool need_pyr = cur_l < T_at_level.size() - 1;
 
         const int imgRows = biggest_imgRows >> cur_l;
@@ -1074,9 +1077,10 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         const int cur_T = T_at_level[cur_l];
         assert(cur_T % 2 == 0);
 
-        for(int ori=0; ori<8; ori++){
-            lm_pyramid[cur_l][0][ori] = cv::Mat(cur_T*cur_T, imgCols/cur_T*imgRows/cur_T, CV_8U, cv::Scalar(0));
-        }
+        // use old linear function will create those for us
+//        for(int ori=0; ori<8; ori++){
+//            lm_pyramid[cur_l][0][ori] = cv::Mat(cur_T*cur_T, imgCols/cur_T*imgRows/cur_T, CV_8U, cv::Scalar(0));
+//        }
 
         sizes.push_back({imgCols, imgRows});
 
@@ -1087,6 +1091,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         if(need_pyr) pyrdown_src = cv::Mat(imgRows/2, imgCols/2, CV_8U, cv::Scalar(0));
 
         simple_fusion::ProcessManager manager(tileRows, tileCols);
+        manager.set_num_threads(num_threads_);
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Gauss1x5Node_8U_32S_4bit_larger>());
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Gauss5x1withPyrdownNode_32S_16S_4bit_smaller>(
                                           pyrdown_src, need_pyr));
@@ -1112,9 +1117,14 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
             out_v.push_back(response);
         }
         manager.process(in_v, out_v);
+        timer.out("fusion time");
 
-        for (int j = 0; j < 8; ++j)
+#pragma omp parallel for num_threads(num_threads_)
+        for (int j = 0; j < 8; ++j){
             linearize(out_v[j], lm_pyramid[cur_l][0][j], cur_T);
+        }
+
+        timer.out("linearize time");
     }
     // ----------------------------------------------------------------------
 
@@ -1138,6 +1148,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
     std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
     matches.erase(new_end, matches.end());
 
+    timer.out("match time");
     return matches;
 }
 
