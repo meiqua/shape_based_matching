@@ -14,6 +14,8 @@
 
 namespace simple_fusion {
 
+#define INVALID 63 // > 8 && < 128
+
 inline int CvTypeSize(int type){
     if(type == CV_8U) return 1;
     else if(type == CV_16U) return 2;
@@ -515,7 +517,7 @@ public:
                     label = (label==0 || is_0_90) ? label: 8-label;
                     *buf_ptr = label;
                 }else{
-                    *buf_ptr = 127;
+                    *buf_ptr = INVALID;
                 }
             }
         }
@@ -534,7 +536,7 @@ public:
         const mipp::Reg<int32_t> TG3375_v = TG3375;
         const mipp::Reg<int32_t> TG5625_v = TG5625;
         const mipp::Reg<int32_t> TG7875_v = TG7875;
-        const mipp::Reg<int32_t> INVALID_v = int32_t(127);
+        const mipp::Reg<int32_t> INVALID_v = int32_t(INVALID);
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
@@ -577,7 +579,7 @@ public:
 
                     label8_v.store((int8_t*)buf_ptr);
                 }else{
-                    mipp::Reg<int8_t> label8_v = int8_t(127);
+                    mipp::Reg<int8_t> label8_v = int8_t(INVALID);
                     label8_v.store((int8_t*)buf_ptr);
                 }
             }
@@ -597,7 +599,7 @@ public:
                     label = (label==0 || is_0_90) ? label: 8-label;
                     *buf_ptr = label;
                 }else{
-                    *buf_ptr = 127;
+                    *buf_ptr = INVALID;
                 }
             }
         }
@@ -662,7 +664,7 @@ public:
         const mipp::Reg<int32_t> TG3375_v = TG3375;
         const mipp::Reg<int32_t> TG5625_v = TG5625;
         const mipp::Reg<int32_t> TG7875_v = TG7875;
-        const mipp::Reg<int32_t> INVALID_v = int32_t(127);
+        const mipp::Reg<int32_t> INVALID_v = int32_t(INVALID);
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
@@ -706,7 +708,7 @@ public:
                     uint8_t temp_result[mipp::N<int8_t>()] = {0};
                     label8_v.store((int8_t*)temp_result);
                     for(int j=0; j<simd_step; j++){
-                        if(temp_result[j] != 127)
+                        if(temp_result[j] != INVALID)
                             buf_ptr[j] = uint8_t(uint8_t(1)<<temp_result[j]);
                         else
                             buf_ptr[j] = 0;
@@ -756,7 +758,7 @@ class Hist3x3Node_8U_8U : public FilterNode {
 public:
     Hist3x3Node_8U_8U() : FilterNode("hist3x3", CV_8U, 1, CV_8U, 1, 3, 3){}
     void update_simple(int start_r, int start_c, int end_r, int end_c) override {
-        uint8_t votes_of_ori[8] = {0};
+
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             uint8_t *parent_buf_ptr = in_headers[0].ptr<uint8_t>(r, c);
@@ -765,32 +767,31 @@ public:
 
             uint8_t *buf_ptr = out_headers[0].ptr<uint8_t>(r - op_row/2, c - op_col/2);
             for(; c < end_c; c++, buf_ptr++, parent_buf_ptr++, parent_buf_ptr_++, parent_buf_ptr__++){
-                for (; c < end_c; c++, buf_ptr++, parent_buf_ptr++,
-                     parent_buf_ptr_++, parent_buf_ptr__++){
 
-                    votes_of_ori[*parent_buf_ptr]++;
-                    votes_of_ori[*(parent_buf_ptr+1)]++;
-                    votes_of_ori[*(parent_buf_ptr-1)]++;
-                    votes_of_ori[*(parent_buf_ptr_)]++;
-                    votes_of_ori[*(parent_buf_ptr_+1)]++;
-                    votes_of_ori[*(parent_buf_ptr_-1)]++;
-                    votes_of_ori[*(parent_buf_ptr__)]++;
-                    votes_of_ori[*(parent_buf_ptr__+1)]++;
-                    votes_of_ori[*(parent_buf_ptr__-1)]++;
+                uint8_t votes_of_ori[8] = {0};
+                if(*parent_buf_ptr != INVALID) votes_of_ori[*parent_buf_ptr]++;
+                if(*(parent_buf_ptr+1) != INVALID) votes_of_ori[*(parent_buf_ptr+1)]++;
+                if(*(parent_buf_ptr-1) != INVALID) votes_of_ori[*(parent_buf_ptr-1)]++;
+                if(*(parent_buf_ptr_) != INVALID) votes_of_ori[*(parent_buf_ptr_)]++;
+                if(*(parent_buf_ptr_+1) != INVALID) votes_of_ori[*(parent_buf_ptr_+1)]++;
+                if(*(parent_buf_ptr_-1) != INVALID) votes_of_ori[*(parent_buf_ptr_-1)]++;
+                if(*(parent_buf_ptr__) != INVALID) votes_of_ori[*(parent_buf_ptr__)]++;
+                if(*(parent_buf_ptr__+1) != INVALID) votes_of_ori[*(parent_buf_ptr__+1)]++;
+                if(*(parent_buf_ptr__-1) != INVALID) votes_of_ori[*(parent_buf_ptr__-1)]++;
 
-                    // Find bin with the most votes from the patch
-                    int max_votes = 0;
-                    uint8_t index = 0;
-                    for (uint8_t i = 0; i < 8; ++i){
-                        if (max_votes < votes_of_ori[i]){
-                            index = i;
-                            max_votes = votes_of_ori[i];
-                        }
+                // Find bin with the most votes from the patch
+                int max_votes = 0;
+                uint8_t index = 0;
+                for (uint8_t i = 0; i < 8; ++i){
+                    if (max_votes < votes_of_ori[i]){
+                        index = i;
+                        max_votes = votes_of_ori[i];
                     }
-
-                    // Only accept the quantization if majority of pixels in the patch agree
-                    if (max_votes >= NEIGHBOR_THRESHOLD) *buf_ptr = uint8_t(uint8_t(1) << index);
                 }
+
+                // Only accept the quantization if majority of pixels in the patch agree
+                if (max_votes >= NEIGHBOR_THRESHOLD) *buf_ptr = uint8_t(uint8_t(1) << index);
+                else *buf_ptr = 0;
             }
         }
     }
