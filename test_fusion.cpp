@@ -108,7 +108,7 @@ void gauss_pyrdown_test()
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss1x5Node_8U_32S_4bit_larger>());
     manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss5x1withPyrdownNode_32S_16S_4bit_smaller>(
-                                 pyr_down_img));
+                                 pyr_down_img, true));
     manager.arrange(img.rows, img.cols);
 
     timer.reset();
@@ -886,11 +886,11 @@ void sobel_mag_phase_quant_hist_spread_response_test()
 int main()
 {
 //    gauss_test();
-    gauss_pyrdown_test();
+//    gauss_pyrdown_test();
 //    sobel_mag_test();
 //    sobel_mag_phase_quant_test();
 //    sobel_mag_phase_quant_hist_test();
 //    sobel_mag_phase_quant_hist_spread_test();
-//    sobel_mag_phase_quant_hist_spread_response_test();
+    sobel_mag_phase_quant_hist_spread_response_test();
     return 0;
 }

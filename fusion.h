@@ -318,8 +318,8 @@ public:
     void update_simple(int start_r, int start_c, int end_r, int end_c) override {
         for(int r = start_r; r < end_r; r++){
             bool is_even_row = r % 2;
-            int r_down = r / 2;
-            bool is_r_in_down_roi = (r >= padded_row && r < end_r - padded_row);
+            int r_down = r / 2 - padded_row / 2;
+            bool is_r_in_down_roi = (r_down >= 0 && r_down < out_headers[1].rows);
 
             int c = start_c;
             int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
@@ -346,8 +346,8 @@ public:
 
                 if(need_pyr_){
                     bool is_even_col = c % 2;
-                    int c_down = c / 2;
-                    bool is_c_in_down_roi = (c >= padded_col && c < end_c - padded_col);
+                    int c_down = c / 2 - padded_col / 2;
+                    bool is_c_in_down_roi = (c_down >= 0 && c_down < out_headers[1].cols);
                     if(is_even_row && is_even_col && is_r_in_down_roi && is_c_in_down_roi){
                         out_headers[1].at<uint8_t>(r_down, c_down) = uint8_t(*buf_ptr);
                     }
@@ -362,8 +362,8 @@ public:
         const mipp::Reg<int32_t> zero32_v = int32_t(0);
         for(int r = start_r; r < end_r; r++){
             bool is_even_row = r % 2;
-            int r_down = r / 2;
-            bool is_r_in_down_roi = (r >= padded_row && r < end_r - padded_row);
+            int r_down = r / 2 - padded_row / 2;
+            bool is_r_in_down_roi = (r_down >= 0 && r_down < out_headers[1].rows);
 
             int c = start_c;
             int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
@@ -400,10 +400,10 @@ public:
                     int16_t *buf_ptr_local = buf_ptr;
                     for(int c_local = c; c_local < c + simd_step; c_local++, buf_ptr_local++){
                         bool is_even_col = c_local % 2;
-                        int c_down = c_local / 2;
-                        bool is_c_in_down_roi = (c_local >= padded_col && c_local < end_c - padded_col);
+                        int c_down = c_local / 2 - padded_col / 2;
+                        bool is_c_in_down_roi = (c_down >= 0 && c_down < out_headers[1].cols);
                         if(is_even_row && is_even_col && is_r_in_down_roi && is_c_in_down_roi){
-                            down_img_.at<uint8_t>(r_down, c_down) = uint8_t(*buf_ptr_local);
+                            out_headers[1].at<uint8_t>(r_down, c_down) = uint8_t(*buf_ptr_local);
                         }
                     }
                 }
@@ -423,8 +423,8 @@ public:
 
                 if(need_pyr_){
                     bool is_even_col = c % 2;
-                    int c_down = c / 2;
-                    bool is_c_in_down_roi = (c >= padded_col && c < end_c - padded_col);
+                    int c_down = c / 2 - padded_col / 2;
+                    bool is_c_in_down_roi = (c_down >= 0 && c_down < out_headers[1].cols);
                     if(is_even_row && is_even_col && is_r_in_down_roi && is_c_in_down_roi){
                         out_headers[1].at<uint8_t>(r_down, c_down) = uint8_t(*buf_ptr);
                     }
