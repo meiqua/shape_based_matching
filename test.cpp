@@ -160,14 +160,8 @@ void scale_test(string mode = "test"){
         Mat test_img = imread(prefix+"case0/1.jpg", cv::IMREAD_GRAYSCALE);
         assert(!test_img.empty() && "check your img path");
 
-        // make the img having 32*n width & height
-        // at least 16*n here for two pyrimads with strides 4 8
-        int stride = 32;
-        int n = test_img.rows/stride;
-        int m = test_img.cols/stride;
-        Rect roi(0, 0, stride*m , stride*n);
-        Mat img = test_img(roi).clone();
-        assert(img.isContinuous());
+        // no need stride now
+        Mat img = test_img.clone();
 
         if(test_img.channels() == 1) cvtColor(test_img, test_img, CV_GRAY2BGR);
 
@@ -268,13 +262,8 @@ void angle_test(string mode = "test"){
                                      test_img.cols + 2*padding, test_img.type(), cv::Scalar::all(0));
         test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
 
-        int stride = 16;
-        int n = padded_img.rows/stride;
-        int m = padded_img.cols/stride;
-        Rect roi(0, 0, stride*m , stride*n);
-        Mat img = padded_img(roi).clone();
-        assert(img.isContinuous());
-
+        // no need for stride now
+        cv::Mat img = padded_img;
         std::cout << "test img size: " << img.rows * img.cols << std::endl << std::endl;
 
         Timer timer;
@@ -373,13 +362,6 @@ void noise_test(string mode = "test"){
 
         Mat test_img = imread(prefix+"case2/test.png", cv::IMREAD_GRAYSCALE);
         assert(!test_img.empty() && "check your img path");
-
-        int stride = 16;
-        int n = test_img.rows/stride;
-        int m = test_img.cols/stride;
-        Rect roi(0, 0, stride*m , stride*n);
-
-        test_img = test_img(roi).clone();
 
         Timer timer;
         auto matches = detector.match(test_img, 80, ids);
