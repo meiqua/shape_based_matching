@@ -347,7 +347,7 @@ void sobel_mag_phase_quant_shift_test()
     std::cout << "test end" << std::endl;
 }
 
-void sobel_mag_phase_quant_hist_spread_test()
+void sobel_mag_phase_quant_hist_test()
 {
     // only support gray img now
     Mat test_img = imread(prefix + "case1/test.png", cv::IMREAD_GRAYSCALE);
@@ -414,46 +414,45 @@ void sobel_mag_phase_quant_hist_spread_test()
     Mat quantized_angle = Mat::zeros(opencv_angle.size(), CV_8U);
     for (int r = 1; r < opencv_angle.rows - 1; ++r)
     {
-        int32_t *mag_r = opencv_mag.ptr<int32_t>(r);
         for (int c = 1; c < opencv_angle.cols - 1; ++c)
         {
-            if (mag_r[c] > thresh * thresh)
+            // slightly different from original, this seems more reasonable
+            int histogram[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
+            uchar *patch3x3_row = &quantized_unfiltered(r - 1, c - 1);
+            int32_t * mag_ptr = opencv_mag.ptr<int32_t>(r - 1, c - 1);
+            if(mag_ptr[0] > thresh*thresh) histogram[patch3x3_row[0]]++;
+            if(mag_ptr[1] > thresh*thresh) histogram[patch3x3_row[1]]++;
+            if(mag_ptr[2] > thresh*thresh) histogram[patch3x3_row[2]]++;
+
+            patch3x3_row += quantized_unfiltered.step1();
+            mag_ptr = opencv_mag.ptr<int32_t>(r, c - 1);
+            if(mag_ptr[0] > thresh*thresh) histogram[patch3x3_row[0]]++;
+            if(mag_ptr[1] > thresh*thresh) histogram[patch3x3_row[1]]++;
+            if(mag_ptr[2] > thresh*thresh) histogram[patch3x3_row[2]]++;
+
+            patch3x3_row += quantized_unfiltered.step1();
+            mag_ptr = opencv_mag.ptr<int32_t>(r + 1, c - 1);
+            if(mag_ptr[0] > thresh*thresh) histogram[patch3x3_row[0]]++;
+            if(mag_ptr[1] > thresh*thresh) histogram[patch3x3_row[1]]++;
+            if(mag_ptr[2] > thresh*thresh) histogram[patch3x3_row[2]]++;
+
+            // Find bin with the most votes from the patch
+            int max_votes = 0;
+            int index = -1;
+            for (int i = 0; i < 8; ++i)
             {
-                // Compute histogram of quantized bins in 3x3 patch around pixel
-                int histogram[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-
-                uchar *patch3x3_row = &quantized_unfiltered(r - 1, c - 1);
-                histogram[patch3x3_row[0]]++;
-                histogram[patch3x3_row[1]]++;
-                histogram[patch3x3_row[2]]++;
-
-                patch3x3_row += quantized_unfiltered.step1();
-                histogram[patch3x3_row[0]]++;
-                histogram[patch3x3_row[1]]++;
-                histogram[patch3x3_row[2]]++;
-
-                patch3x3_row += quantized_unfiltered.step1();
-                histogram[patch3x3_row[0]]++;
-                histogram[patch3x3_row[1]]++;
-                histogram[patch3x3_row[2]]++;
-
-                // Find bin with the most votes from the patch
-                int max_votes = 0;
-                int index = -1;
-                for (int i = 0; i < 8; ++i)
+                if (max_votes < histogram[i])
                 {
-                    if (max_votes < histogram[i])
-                    {
-                        index = i;
-                        max_votes = histogram[i];
-                    }
+                    index = i;
+                    max_votes = histogram[i];
                 }
-
-                // Only accept the quantization if majority of pixels in the patch agree
-                static const int NEIGHBOR_THRESHOLD = 5;
-                if (max_votes >= NEIGHBOR_THRESHOLD)
-                    quantized_angle.at<uchar>(r, c) = uchar(1 << index);
             }
+
+            // Only accept the quantization if majority of pixels in the patch agree
+            static const int NEIGHBOR_THRESHOLD = 5;
+            if (max_votes >= NEIGHBOR_THRESHOLD)
+                quantized_angle.at<uchar>(r, c) = uchar(1 << index);
         }
     }
     opencv_time += timer.out("opencv quant");
@@ -491,6 +490,6 @@ int main()
 //    gauss_test();
 //    sobel_mag_test();
 //    sobel_mag_phase_quant_test();
-    sobel_mag_phase_quant_hist_spread_test();
+    sobel_mag_phase_quant_hist_test();
     return 0;
 }
