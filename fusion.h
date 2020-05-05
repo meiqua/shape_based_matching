@@ -515,7 +515,7 @@ public:
                     label = (label==0 || is_0_90) ? label: 8-label;
                     *buf_ptr = label;
                 }else{
-                    *buf_ptr = 0;
+                    *buf_ptr = 127;
                 }
             }
         }
@@ -534,6 +534,7 @@ public:
         const mipp::Reg<int32_t> TG3375_v = TG3375;
         const mipp::Reg<int32_t> TG5625_v = TG5625;
         const mipp::Reg<int32_t> TG7875_v = TG7875;
+        const mipp::Reg<int32_t> INVALID_v = int32_t(127);
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
@@ -568,7 +569,7 @@ public:
                                          ((label_v == ZERO32_v) |
                                          (((dx_int32>0) & (dy_int32>0))|((dx_int32<0) & (dy_int32<0)))));
 
-                    label_v = mipp::blend(label_v, ZERO32_v, mag_mask);
+                    label_v = mipp::blend(label_v, INVALID_v, mag_mask);
 
                     // range 0-7, so no worry for signed int while pack
                     mipp::Reg<int16_t> label16_v = mipp::pack<int32_t, int16_t>(label_v, ZERO32_v);
@@ -576,7 +577,7 @@ public:
 
                     label8_v.store((int8_t*)buf_ptr);
                 }else{
-                    mipp::Reg<int8_t> label8_v = int8_t(0);
+                    mipp::Reg<int8_t> label8_v = int8_t(127);
                     label8_v.store((int8_t*)buf_ptr);
                 }
             }
@@ -596,7 +597,7 @@ public:
                     label = (label==0 || is_0_90) ? label: 8-label;
                     *buf_ptr = label;
                 }else{
-                    *buf_ptr = 0;
+                    *buf_ptr = 127;
                 }
             }
         }
@@ -661,6 +662,7 @@ public:
         const mipp::Reg<int32_t> TG3375_v = TG3375;
         const mipp::Reg<int32_t> TG5625_v = TG5625;
         const mipp::Reg<int32_t> TG7875_v = TG7875;
+        const mipp::Reg<int32_t> INVALID_v = int32_t(127);
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
             int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
@@ -695,7 +697,7 @@ public:
                                          ((label_v == ZERO32_v) |
                                          (((dx_int32>0) & (dy_int32>0))|((dx_int32<0) & (dy_int32<0)))));
 
-                    label_v = mipp::blend(label_v, ZERO32_v, mag_mask);
+                    label_v = mipp::blend(label_v, INVALID_v, mag_mask);
 
                     // range 0-7, so no worry for signed int while pack
                     mipp::Reg<int16_t> label16_v = mipp::pack<int32_t, int16_t>(label_v, ZERO32_v);
@@ -704,7 +706,10 @@ public:
                     uint8_t temp_result[mipp::N<int8_t>()] = {0};
                     label8_v.store((int8_t*)temp_result);
                     for(int j=0; j<simd_step; j++){
-                        buf_ptr[j] = uint8_t(uint8_t(1)<<temp_result[j]);
+                        if(temp_result[j] != 127)
+                            buf_ptr[j] = uint8_t(uint8_t(1)<<temp_result[j]);
+                        else
+                            buf_ptr[j] = 0;
                     }
                 }else{
                     mipp::Reg<int8_t> label8_v = int8_t(0);
