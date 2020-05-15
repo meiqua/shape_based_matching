@@ -307,6 +307,7 @@ static void quantizedOrientations(const Mat &src, Mat &magnitude,
         magnitude = sobel_dx.mul(sobel_dx) + sobel_dy.mul(sobel_dy);
         phase(sobel_dx, sobel_dy, sobel_ag, true);
         hysteresisGradient(magnitude, angle, sobel_ag, threshold * threshold);
+        angle_ori = sobel_ag;
 
     }else{
 
