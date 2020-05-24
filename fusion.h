@@ -221,8 +221,8 @@ public:
             int c = start_c;
             int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
 
-            int32_t* parent_buf_ptr[gauss_size];
-            int32_t** parent_buf_center = parent_buf_ptr + gauss_size/2;
+            std::vector<int32_t*> parent_buf_ptr(gauss_size);
+            int32_t** parent_buf_center = &parent_buf_ptr[gauss_size/2];
             parent_buf_center[0] = in_headers[0].ptr<int32_t>(r, c);
             for(int i=1; i<=gauss_size/2; i++){
                 parent_buf_center[i] = in_headers[0].ptr<int32_t>(r+i, c);
@@ -251,8 +251,8 @@ public:
             int c = start_c;
             int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
 
-            int32_t* parent_buf_ptr[gauss_size];
-            int32_t** parent_buf_center = parent_buf_ptr + gauss_size/2;
+            std::vector<int32_t*> parent_buf_ptr(gauss_size);
+            int32_t** parent_buf_center = &parent_buf_ptr[gauss_size/2];
             parent_buf_center[0] = in_headers[0].ptr<int32_t>(r, c);
             for(int i=1; i<=gauss_size/2; i++){
                 parent_buf_center[i] = in_headers[0].ptr<int32_t>(r+i, c);
@@ -328,8 +328,8 @@ public:
             int c = start_c;
             int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
 
-            int32_t* parent_buf_ptr[gauss_size];
-            int32_t** parent_buf_center = parent_buf_ptr + gauss_size/2;
+            std::vector<int32_t*> parent_buf_ptr(gauss_size);
+            int32_t** parent_buf_center = &parent_buf_ptr[gauss_size/2];
             parent_buf_center[0] = in_headers[0].ptr<int32_t>(r, c);
             for(int i=1; i<=gauss_size/2; i++){
                 parent_buf_center[i] = in_headers[0].ptr<int32_t>(r+i, c);
@@ -372,8 +372,8 @@ public:
             int c = start_c;
             int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
 
-            int32_t* parent_buf_ptr[gauss_size];
-            int32_t** parent_buf_center = parent_buf_ptr + gauss_size/2;
+            std::vector<int32_t*> parent_buf_ptr(gauss_size);
+            int32_t** parent_buf_center = &parent_buf_ptr[gauss_size/2];
             parent_buf_center[0] = in_headers[0].ptr<int32_t>(r, c);
             for(int i=1; i<=gauss_size/2; i++){
                 parent_buf_center[i] = in_headers[0].ptr<int32_t>(r+i, c);
@@ -1035,8 +1035,9 @@ public:
     void update_simple(int start_r, int start_c, int end_r, int end_c) override {
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
-            uint8_t *parent_buf_ptr[op_row];
-            uint8_t** parent_buf_ptr_center = parent_buf_ptr + op_row/2;
+
+            std::vector<uint8_t*> parent_buf_ptr(op_row);
+            uint8_t** parent_buf_ptr_center = &parent_buf_ptr[op_row/2];
             parent_buf_ptr_center[0] = in_headers[0].ptr<uint8_t>(r, c);
             for(int i=1; i<=op_row/2; i++){
                 parent_buf_ptr_center[+i] = in_headers[0].ptr<uint8_t>(r+i, c);
@@ -1060,8 +1061,8 @@ public:
         const int simd_step = mipp::N<int8_t>();
         for(int r = start_r; r < end_r; r++){
             int c = start_c;
-            uint8_t *parent_buf_ptr[op_row];
-            uint8_t** parent_buf_ptr_center = parent_buf_ptr + op_row/2;
+            std::vector<uint8_t*> parent_buf_ptr(op_row);
+            uint8_t** parent_buf_ptr_center = &parent_buf_ptr[op_row/2];
             parent_buf_ptr_center[0] = in_headers[0].ptr<uint8_t>(r, c);
             for(int i=1; i<=op_row/2; i++){
                 parent_buf_ptr_center[+i] = in_headers[0].ptr<uint8_t>(r+i, c);
