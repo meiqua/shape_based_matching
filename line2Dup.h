@@ -279,6 +279,8 @@ public:
     }
 
     void produce_infos(){
+        infos.clear();
+
         assert(angle_range.size() <= 2);
         assert(scale_range.size() <= 2);
         assert(angle_step > eps*10);

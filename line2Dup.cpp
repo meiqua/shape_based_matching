@@ -196,15 +196,7 @@ bool ColorGradientPyramid::selectScatteredFeatures(const std::vector<Candidate> 
              }
         }
     }
-    if (features.size() >= num_features)
-    {
-        return true;
-    }
-    else
-    {
-        std::cout << "this templ has no enough features, but we let it go" << std::endl;
-        return true;
-    }
+    return true;
 }
 
 /****************************************************************************************\
@@ -469,6 +461,7 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
                                 break;
                             }
                         }
+                        if(!is_max) break;
                     }
 
                     if(is_max){
@@ -490,13 +483,21 @@ bool ColorGradientPyramid::extractTemplate(Template &templ) const
         }
     }
     // We require a certain number of features
-    if (candidates.size() < num_features)
-        return false;
+    if (candidates.size() < num_features){
+        if(candidates.size() <= 4) {
+            std::cout << "too few features, abort" << std::endl;
+            return false;
+        }
+        std::cout << "have no enough features, exaustive mode" << std::endl;
+    }
+
     // NOTE: Stable sort to agree with old code, which used std::list::sort()
     std::stable_sort(candidates.begin(), candidates.end());
 
     // Use heuristic based on surplus of candidates in narrow outline for initial distance threshold
     float distance = static_cast<float>(candidates.size() / num_features + 1);
+
+    // selectScatteredFeatures always return true
     if (!selectScatteredFeatures(candidates, templ.features, num_features, distance))
     {
         return false;
@@ -601,9 +602,10 @@ static void spread(const Mat &src, Mat &dst, int T)
     }
 }
 
-// 1,2-->0 3-->1
+static const unsigned char LUT3 = 3;
+// 1,2-->0 3-->LUT3
 CV_DECL_ALIGNED(16)
-static const unsigned char SIMILARITY_LUT[256] = {0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 4, 1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 1, 1, 4, 4, 0, 1, 4, 4, 1, 1, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 4, 4, 4, 4, 1, 1, 1, 1, 4, 4, 4, 4, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4};
+static const unsigned char SIMILARITY_LUT[256] = {0, 4, LUT3, 4, 0, 4, LUT3, 4, 0, 4, LUT3, 4, 0, 4, LUT3, 4, 0, 0, 0, 0, 0, 0, 0, 0, LUT3, LUT3, LUT3, LUT3, LUT3, LUT3, LUT3, LUT3, 0, LUT3, 4, 4, LUT3, LUT3, 4, 4, 0, LUT3, 4, 4, LUT3, LUT3, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LUT3, LUT3, 4, 4, 4, 4, LUT3, LUT3, LUT3, LUT3, 4, 4, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LUT3, LUT3, LUT3, LUT3, 4, 4, 4, 4, 4, 4, 4, 4, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, 0, 0, 0, 0, 0, 0, 0, LUT3, LUT3, LUT3, LUT3, LUT3, LUT3, LUT3, LUT3, 0, 4, LUT3, 4, 0, 4, LUT3, 4, 0, 4, LUT3, 4, 0, 4, LUT3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LUT3, 4, 4, LUT3, LUT3, 4, 4, 0, LUT3, 4, 4, LUT3, LUT3, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, LUT3, LUT3, 4, 4, 4, 4, LUT3, LUT3, LUT3, LUT3, 4, 4, 4, 4, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, LUT3, 0, 0, 0, 0, LUT3, LUT3, LUT3, LUT3, 4, 4, 4, 4, 4, 4, 4, 4};
 
 static void computeResponseMaps(const Mat &src, std::vector<Mat> &response_maps)
 {
