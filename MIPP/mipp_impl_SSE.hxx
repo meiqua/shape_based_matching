@@ -2044,6 +2044,18 @@
 	inline reg mul<int32_t>(const reg v1, const reg v2) {
 		return _mm_castsi128_ps(_mm_mullo_epi32(_mm_castps_si128(v1), _mm_castps_si128(v2)));
 	}
+#else
+	template <>
+	inline reg mul<int32_t>(const reg v1, const reg v2) {
+		// refer to 
+		// https://stackoverflow.com/questions/10500766/sse-multiplication-of-4-32-bit-integers
+		auto a = _mm_castps_si128(v1);
+		auto b = _mm_castps_si128(v2);
+    	auto tmp1 = _mm_mul_epu32(a,b); /* mul 2,0*/
+    	auto tmp2 = _mm_mul_epu32( _mm_srli_si128(a,4), _mm_srli_si128(b,4)); /* mul 3,1 */
+    	return _mm_castsi128_ps(_mm_unpacklo_epi32(_mm_shuffle_epi32(tmp1, 
+		_MM_SHUFFLE (0,0,2,0)), _mm_shuffle_epi32(tmp2, _MM_SHUFFLE (0,0,2,0)))); /* shuffle results to [63..0] and pack */
+	}
 #endif
 
 #ifdef __SSE2__
@@ -2367,6 +2379,22 @@
 	template <>
 	inline reg abs<int8_t>(const reg v1) {
 		return _mm_castsi128_ps(_mm_abs_epi8(_mm_castps_si128(v1)));
+	}
+#else
+	template <>
+	inline reg abs<int32_t>(const reg v1) {
+
+		auto a = _mm_castps_si128(v1);
+		// 0 or 0xFF
+		auto t = _mm_cmplt_epi32(a, _mm_setzero_si128());
+
+		// when x >= 0, this is x
+		// when x < 0, this is x's complement code
+		auto r = _mm_xor_si128(a, t);
+
+		// when x>=0, this is x, else
+		// complement code + 1 (-0xFF = (1 - 0x100) % 0x100 = 1) = -x
+		return _mm_castsi128_ps(_mm_sub_epi32(r, t));
 	}
 #endif
 
@@ -2773,6 +2801,15 @@
 	template <>
 	inline reg cvt<int32_t,int64_t>(const reg_2 v) {
 		return _mm_castsi128_ps(_mm_cvtepi32_epi64(_mm_castpd_si128(v)));
+	}
+#else
+	template <>
+	inline reg cvt<int16_t,int32_t>(const reg_2 v) {
+		alignas(16) int16_t int16_v[8];
+		mipp::store<int16_t>(int16_v, _mm_castsi128_ps((_mm_castpd_si128(v))));
+		alignas(16) int32_t int32_v[4];
+		for(int i=0; i<4; i++) int32_v[i] = int16_v[i];
+		return mipp::load<int32_t>(int32_v);
 	}
 #endif
 

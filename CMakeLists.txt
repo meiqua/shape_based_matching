@@ -5,7 +5,6 @@ project(shape_based_matching)
 
 # debug or release
 SET(CMAKE_BUILD_TYPE "Release")
-#SET(CMAKE_BUILD_TYPE "Debug")
 
 
 # arm or x86
@@ -16,10 +15,9 @@ ELSE()
 
     # some places of the algorithm are designed for 128 SIMD
     # so 128 SSE may slightly faster than 256 AVX, you may want this
-#    SET(PLATFORM_COMPILE_FLAGS "-msse -msse2 -msse3 -msse4 -mssse3")  # SSE only
+#    SET(PLATFORM_COMPILE_FLAGS "-msse ")  # SSE only -msse2 -msse3 -msse4 -mssse3
 ENDIF()
 
-# SET(PLATFORM_COMPILE_FLAGS "-DMIPP_NO_INTRINSICS")  # close SIMD
 SET(COMMON_COMPILE_FLAGS "-fopenmp") # -fno-strict-aliasing
 SET(CMAKE_CXX_FLAGS "${PLATFORM_COMPILE_FLAGS} ${COMMON_COMPILE_FLAGS} $ENV{CXXFLAGS}")
 SET(CMAKE_CXX_FLAGS_DEBUG "-O0 -g2 -ggdb")
