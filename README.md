@@ -1,6 +1,7 @@
 # shape_based_matching  
 
 update:   
+**[fusion implementation to run faster!](https://github.com/meiqua/shape_based_matching/issues/77)**  
 [Transforms in shape-based matching](./Transforms%20in%20shape-based%20matching.pdf)  
 [pose refine with icp branch](https://github.com/meiqua/shape_based_matching/tree/icp2D), 0.1-0.5 degree accuracy   
 [icp + subpixel branch](https://github.com/meiqua/shape_based_matching/tree/subpixel), < 0.1 degree accuracy  
@@ -49,7 +50,10 @@ Comparing to opencv linemod src, we improve from 6 aspects:
 
 6. use [MIPP](https://github.com/aff3ct/MIPP) for multiple platforms SIMD, for example, x86 SSE AVX, arm neon.
    To have better performance, we have extended MIPP to uint8_t for some instructions.(Otherwise we can only use
-   half feature points to avoid int8_t overflow)
+   half feature points to avoid int8_t overflow)  
+
+7. rotate features directly to speed up template extractions; selectScatteredFeatures more 
+evenly; exautive select all features if not enough rather than abort templates(but features <= 4 will abort)
 
 ## some test
 

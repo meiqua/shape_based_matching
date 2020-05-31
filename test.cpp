@@ -11,6 +11,24 @@ using namespace cv;
 
 static std::string prefix = "/home/meiqua/shape_based_matching/test/";
 
+class Timer
+{
+public:
+    Timer() : beg_(clock_::now()) {}
+    void reset() { beg_ = clock_::now(); }
+    double elapsed() const {
+        return std::chrono::duration_cast<second_>
+            (clock_::now() - beg_).count(); }
+    void out(std::string message = ""){
+        double t = elapsed();
+        std::cout << message << "\nelasped time:" << t << "s" << std::endl;
+        reset();
+    }
+private:
+    typedef std::chrono::high_resolution_clock clock_;
+    typedef std::chrono::duration<double, std::ratio<1> > second_;
+    std::chrono::time_point<clock_> beg_;
+};
 // NMS, got from cv::dnn so we don't need opencv contrib
 // just collapse it
 namespace  cv_dnn {
@@ -127,8 +145,7 @@ private:
 void angle_test(string mode = "test", bool viewICP = false){
     line2Dup::Detector detector(128, {4, 8});
 
-//    mode = "test";
-    if(mode == "train"){
+    if(mode != "test"){
         Mat img = imread(prefix+"case1/train.png");
         assert(!img.empty() && "check your img path");
 
@@ -147,15 +164,47 @@ void angle_test(string mode = "test", bool viewICP = false){
         shape_based_matching::shapeInfo_producer shapes(padded_img, padded_mask);
         shapes.angle_range = {0, 360};
         shapes.angle_step = 1;
+
+        shapes.scale_range = {1}; // support just one
         shapes.produce_infos();
         std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
         string class_id = "test";
+
+        bool is_first = true;
+
+        // for other scales you want to re-extract points: 
+        // set shapes.scale_range then produce_infos; set is_first = false;
+
+        int first_id = 0;
+        float first_angle = 0;
         for(auto& info: shapes.infos){
-            imshow("train", shapes.src_of(info));
-            waitKey(1);
+            Mat to_show = shapes.src_of(info);
 
             std::cout << "\ninfo.angle: " << info.angle << std::endl;
-            int templ_id = detector.addTemplate(shapes.src_of(info), class_id, shapes.mask_of(info));
+            int templ_id;
+
+            if(is_first){
+                templ_id = detector.addTemplate(shapes.src_of(info), class_id, shapes.mask_of(info));
+                first_id = templ_id;
+                first_angle = info.angle;
+
+                if(use_rot) is_first = false;
+            }else{
+                templ_id = detector.addTemplate_rotate(class_id, first_id,
+                                                       info.angle-first_angle,
+                                                {shapes.src.cols/2.0f, shapes.src.rows/2.0f});
+            }
+
+            auto templ = detector.getTemplates("test", templ_id);
+            for(int i=0; i<templ[0].features.size(); i++){
+                auto feat = templ[0].features[i];
+                cv::circle(to_show, {feat.x+templ[0].tl_x, feat.y+templ[0].tl_y}, 3, {0, 0, 255}, -1);
+            }
+            
+            // will be faster if not showing this
+            imshow("train", to_show);
+            waitKey(1);
+
             std::cout << "templ_id: " << templ_id << std::endl;
             if(templ_id != -1){
                 infos_have_templ.push_back(info);
@@ -240,10 +289,11 @@ void angle_test(string mode = "test", bool viewICP = false){
             // scaling won't affect this, because it has been determined by warpAffine
             // cv::warpAffine(src, dst, rot_mat, src.size()); last param
             float train_img_half_width = 270/2.0f + 100;
+            float train_img_half_height = 270/2.0f + 100;
 
             // center x,y of train_img in test img
             float x =  match.x - templ[0].tl_x + train_img_half_width;
-            float y =  match.y - templ[0].tl_y + train_img_half_width;
+            float y =  match.y - templ[0].tl_y + train_img_half_height;
 
             vector<::Vec2f> model_pcd(templ[0].features.size());
             for(int i=0; i<templ[0].features.size(); i++){
@@ -330,8 +380,6 @@ void MIPP_test(){
 }
 
 int main(){
-
-    MIPP_test();
-    angle_test("test"); // test or train
+    angle_test("test", true); // test or train
     return 0;
 }
