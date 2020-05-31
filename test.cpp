@@ -168,7 +168,7 @@ void noise_test(string mode = "test"){
         test_img = test_img(roi).clone();
 
         Timer timer;
-        auto matches = detector.match(test_img, 80, ids);
+        auto matches = detector.match(test_img, 85, ids);
         timer.out();
 
         std::cout << "matches.size(): " << matches.size() << std::endl;

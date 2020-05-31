@@ -15,6 +15,7 @@ struct Feature
     int x;
     int y;
     int label;
+    float theta;
 
     void read(const cv::FileNode &fn);
     void write(cv::FileStorage &fs) const;
@@ -73,6 +74,7 @@ public:
     int pyramid_level;
     cv::Mat angle;
     cv::Mat magnitude;
+    cv::Mat angle_ori;
 
     float weak_threshold;
     size_t num_features;
@@ -155,6 +157,8 @@ public:
 
     int addTemplate(const cv::Mat sources, const std::string &class_id,
                                     const cv::Mat &object_mask, int num_features = 0);
+
+    int addTemplate_rotate(const std::string &class_id, int zero_id, float theta, cv::Point2f center);
 
     const cv::Ptr<ColorGradient> &getModalities() const { return modality; }
 
@@ -275,6 +279,8 @@ public:
     }
 
     void produce_infos(){
+        infos.clear();
+
         assert(angle_range.size() <= 2);
         assert(scale_range.size() <= 2);
         assert(angle_step > eps*10);
