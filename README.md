@@ -1,6 +1,16 @@
 # shape_based_matching  
 
 update:   
+
+### python binding
+1. install [pybind11](https://github.com/pybind/pybind11), mkdir build && cmake .. && make && sudo make install
+2. we use py3, run unset PYTHONPATH in terminal to avoid use py2 when import cv2
+3. pip3 install numpy opencv-python
+4. in top level folder, pip3 install ./
+5. python3 test.py  
+
+
+
 **[fusion implementation to run faster!](https://github.com/meiqua/shape_based_matching/issues/77)**  
 [Transforms in shape-based matching](./Transforms%20in%20shape-based%20matching.pdf)  
 [pose refine with icp branch](https://github.com/meiqua/shape_based_matching/tree/icp2D), 0.1-0.5 degree accuracy   

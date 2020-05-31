@@ -183,7 +183,7 @@ public:
     void readClasses(const std::vector<std::string> &class_ids,
                                      const std::string &format = "templates_%s.yml.gz");
     void writeClasses(const std::string &format = "templates_%s.yml.gz") const;
-
+    void clear_classes(){class_templates.clear();}
 protected:
     cv::Ptr<ColorGradient> modality;
     int pyramid_levels;
@@ -207,6 +207,17 @@ protected:
 } // namespace line2Dup
 
 namespace shape_based_matching {
+
+class Info{
+public:
+    float angle;
+    float scale;
+    Info(){}
+    Info(float angle_, float scale_){
+        angle = angle_;
+        scale = scale_;
+    }
+};    
 class shapeInfo_producer{
 public:
     cv::Mat src;
@@ -219,19 +230,19 @@ public:
     float scale_step = 0.5;
     float eps = 0.00001f;
 
-    class Info{
-    public:
-        float angle;
-        float scale;
-
-        Info(float angle_, float scale_){
-            angle = angle_;
-            scale = scale_;
-        }
-    };
     std::vector<Info> infos;
 
+    shapeInfo_producer(){}
     shapeInfo_producer(cv::Mat src, cv::Mat mask = cv::Mat()){
+        this->src = src;
+        if(mask.empty()){
+            // make sure we have masks
+            this->mask = cv::Mat(src.size(), CV_8UC1, {255});
+        }else{
+            this->mask = mask;
+        }
+    }
+    void set_src_mask(cv::Mat src, cv::Mat mask = cv::Mat()){
         this->src = src;
         if(mask.empty()){
             // make sure we have masks
@@ -250,7 +261,7 @@ public:
 
         return dst;
     }
-    static void save_infos(std::vector<shapeInfo_producer::Info>& infos, std::string path = "infos.yaml"){
+    void save_infos(std::vector<Info>& infos, std::string path = "infos.yaml"){
         cv::FileStorage fs(path, cv::FileStorage::WRITE);
 
         fs << "infos"
@@ -264,7 +275,7 @@ public:
         }
         fs << "]";
     }
-    static std::vector<Info> load_infos(std::string path = "info.yaml"){
+    std::vector<Info> load_infos(std::string path = "info.yaml"){
         cv::FileStorage fs(path, cv::FileStorage::READ);
 
         std::vector<Info> infos;

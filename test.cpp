@@ -137,7 +137,7 @@ void scale_test(string mode = "test"){
         shapes.scale_step = 0.01f;
         shapes.produce_infos();
 
-        std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
+        std::vector<shape_based_matching::Info> infos_have_templ;
         string class_id = "circle";
         for(auto& info: shapes.infos){
 
@@ -245,7 +245,7 @@ void angle_test(string mode = "test", bool use_rot = true){
 
         shapes.scale_range = {1}; // support just one
         shapes.produce_infos();
-        std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
+        std::vector<shape_based_matching::Info> infos_have_templ;
         string class_id = "test";
 
         bool is_first = true;
@@ -297,7 +297,8 @@ void angle_test(string mode = "test", bool use_rot = true){
         detector.readClasses(ids, prefix+"case1/%s_templ.yaml");
 
         // angle & scale are saved here, fetched by match id
-        auto infos = shape_based_matching::shapeInfo_producer::load_infos(prefix + "case1/test_info.yaml");
+        shape_based_matching::shapeInfo_producer producer;
+        auto infos = producer.load_infos(prefix + "case1/test_info.yaml");
 
         Mat test_img = imread(prefix+"case1/test.png");
         assert(!test_img.empty() && "check your img path");
@@ -391,7 +392,7 @@ void noise_test(string mode = "test"){
         shapes.angle_range = {0, 360};
         shapes.angle_step = 1;
         shapes.produce_infos();
-        std::vector<shape_based_matching::shapeInfo_producer::Info> infos_have_templ;
+        std::vector<shape_based_matching::Info> infos_have_templ;
         string class_id = "test";
         for(auto& info: shapes.infos){
             imshow("train", shapes.src_of(info));
@@ -508,7 +509,7 @@ void MIPP_test(){
 
 int main(){
     // scale_test("test");
-    angle_test("test", true); // test or train
+    angle_test("train", true); // test or train
     // noise_test("test");
     return 0;
 }
