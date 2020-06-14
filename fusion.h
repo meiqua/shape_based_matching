@@ -323,8 +323,10 @@ public:
         for(int r = start_r; r < end_r; r++){
             bool is_even_row = r % 2;
             int r_down = r / 2 - padded_row / 2;
-            bool is_r_in_down_roi = (r_down >= 0 && r_down < out_headers[1].rows);
-
+            bool is_r_in_down_roi;
+            if(need_pyr_){
+                is_r_in_down_roi = (r_down >= 0 && r_down < out_headers[1].rows);
+            }
             int c = start_c;
             int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
 
@@ -367,8 +369,10 @@ public:
         for(int r = start_r; r < end_r; r++){
             bool is_even_row = r % 2;
             int r_down = r / 2 - padded_row / 2;
-            bool is_r_in_down_roi = (r_down >= 0 && r_down < out_headers[1].rows);
-
+            bool is_r_in_down_roi;
+            if(need_pyr_){
+                is_r_in_down_roi = (r_down >= 0 && r_down < out_headers[1].rows);
+            }
             int c = start_c;
             int16_t *buf_ptr = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
 
