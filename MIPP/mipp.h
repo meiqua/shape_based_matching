@@ -39,8 +39,10 @@ SOFTWARE.
 #elif (defined(_M_AMD64) || defined(_M_X64))
 //SSE2 x64
 #define __SSE2__
+#define __SSE__
 #elif _M_IX86_FP == 2
 //SSE2 x32
+#define __SSE__
 #define __SSE2__
 #elif _M_IX86_FP == 1
 //SSE x32
