@@ -18,6 +18,7 @@ namespace simple_fusion {
 
 inline int CvTypeSize(int type){
     if(type == CV_8U) return 1;
+    else if(type == CV_8UC3) return 3;
     else if(type == CV_16U) return 2;
     else if(type == CV_16S) return 2;
     else if(type == CV_32S) return 4;
@@ -129,6 +130,33 @@ public:
         return node_new;
     }
 };
+
+class BGR2GRAY_8UC3_8U : public FilterNode {
+public:
+    BGR2GRAY_8UC3_8U() : FilterNode("bgr2gray", CV_8UC3, 1, CV_8U, 1, 1, 1) {}
+    void update_simple(int start_r, int start_c, int end_r, int end_c) override {
+        // assert(in_headers[0].rows == out_headers[0].rows
+        //     && in_headers[0].cols == out_headers[0].cols
+        //     && "we will use opencv directly, r/c should be same");
+
+        cv::Mat gray;
+        // opencv can't specify an existing one?
+        // cv::COLOR_BGR2GRAY is new version of CV_BGR2GRAY
+        cv::cvtColor(in_headers[0], gray, cv::COLOR_BGR2GRAY);
+        gray.copyTo(out_headers[0]);
+    }
+    void update_simd(int start_r, int start_c, int end_r, int end_c) override {
+        update_simple(start_r, start_c, end_r, end_c);
+    }
+    std::shared_ptr<FilterNode> clone() const override {
+        std::shared_ptr<FilterNode> node_new = std::make_shared<BGR2GRAY_8UC3_8U>();
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
+    }
+};
+
 
 class Gauss1x5Node_8U_32S_4bit_larger: public FilterNode {
 public:
@@ -1393,6 +1421,7 @@ public:
                 else if(in.type() == CV_16U) copyToWith0Bound<uint16_t>(in, buffer_header, cur_roi_padded, 0, 0);
                 else if(in.type() == CV_32S) copyToWith0Bound<int32_t>(in, buffer_header, cur_roi_padded, 0, 0);
                 else if(in.type() == CV_32F) copyToWith0Bound<float>(in, buffer_header, cur_roi_padded, 0, 0);
+                else if(in.type() == CV_8UC3) copyToWith0Bound<cv::Vec3b>(in, buffer_header, cur_roi_padded, 0, 0);
                 else CV_Error(cv::Error::StsBadArg, "Invalid type");
 
                 nodes_private[0]->in_headers.push_back(buffer_header);

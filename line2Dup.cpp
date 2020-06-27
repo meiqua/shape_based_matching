@@ -1057,7 +1057,6 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
     LinearMemoryPyramid lm_pyramid(pyramid_levels, std::vector<LinearMemories>(1, LinearMemories(8)));
     std::vector<Size> sizes;
 
-    assert(source.channels() == 1 && "only gray img now");
     assert(mask.empty() && "mask not support yet");
 
     // no need to crop now, we deal with it internally
@@ -1097,6 +1096,8 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
         simple_fusion::ProcessManager manager(tileRows, tileCols);
         manager.set_num_threads(num_threads_);
+        if(src.channels() == 3)
+            manager.get_nodes().push_back(std::make_shared<simple_fusion::BGR2GRAY_8UC3_8U>());
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Gauss1x5Node_8U_32S_4bit_larger>());
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Gauss5x1withPyrdownNode_32S_16S_4bit_smaller>(
                                           pyrdown_src, need_pyr));

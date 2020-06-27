@@ -254,7 +254,7 @@ void angle_test(string mode = "test"){
         auto infos = shape_based_matching::shapeInfo_producer::load_infos(prefix + "case1/test_info.yaml");
 
         // only support gray img now
-        Mat test_img = imread(prefix+"case1/test.png", cv::IMREAD_GRAYSCALE);
+        Mat test_img = imread(prefix+"case1/test.png");
         assert(!test_img.empty() && "check your img path");
 
         int padding = 1500;
