@@ -795,7 +795,8 @@ static void similarity(const std::vector<Mat> &linear_memories, const Template &
     int span_x = W - wf;
     int span_y = H - hf;
 
-    int template_positions = span_y * W + span_x + 1; // why add 1?
+    // int template_positions = span_y * W + span_x + 1; // why add 1?
+    int template_positions = (span_y - 1) * W + span_x;
 
     dst = Mat::zeros(H, W, CV_16U);
     short *dst_ptr = dst.ptr<short>();
@@ -919,8 +920,8 @@ static void similarity_64(const std::vector<Mat> &linear_memories, const Templat
     // Compute number of contiguous (in memory) pixels to check when sliding feature over
     // image. This allows template to wrap around left/right border incorrectly, so any
     // wrapped template matches must be filtered out!
-    int template_positions = span_y * W + span_x + 1; // why add 1?
-    //int template_positions = (span_y - 1) * W + span_x; // More correct?
+    // int template_positions = span_y * W + span_x + 1; // why add 1?
+    int template_positions = (span_y - 1) * W + span_x; // More correct?
 
     /// @todo In old code, dst is buffer of size m_U. Could make it something like
     /// (span_x)x(span_y) instead?
@@ -1152,6 +1153,8 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             int lowest_start = static_cast<int>(tp.size() - 1);
             int lowest_T = T_at_level.back();
             int num_features = 0;
+            int w_templ_margin = (tp[lowest_start].width - 1) / lowest_T + 1;
+            int h_templ_margin = (tp[lowest_start].height - 1) / lowest_T + 1;
 
             {
                 const Template &templ = tp[lowest_start];
@@ -1168,10 +1171,10 @@ void Detector::matchClass(const LinearMemoryPyramid &lm_pyramid,
             }
 
             // Find initial matches
-            for (int r = 0; r < similarities.rows; ++r)
+            for (int r = 0; r < similarities.rows - h_templ_margin; ++r)
             {
                 ushort *row = similarities.ptr<ushort>(r);
-                for (int c = 0; c < similarities.cols; ++c)
+                for (int c = 0; c < similarities.cols - w_templ_margin; ++c)
                 {
                     int raw_score = row[c];
                     float score = (raw_score * 100.f) / (4 * num_features);
