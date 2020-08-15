@@ -1,5 +1,7 @@
 # shape_based_matching  
 
+### For this branch, see [refine icp issue](https://github.com/meiqua/shape_based_matching/issues/100) for detailed introduction
+
 update:   
 **[fusion implementation to run faster!](https://github.com/meiqua/shape_based_matching/issues/77)**  
 [Transforms in shape-based matching](./Transforms%20in%20shape-based%20matching.pdf)  
