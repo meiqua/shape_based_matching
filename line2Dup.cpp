@@ -4,6 +4,8 @@
 using namespace std;
 using namespace cv;
 
+#ifdef DEBUG_MATCH_TIME
+
 #include <chrono>
 class Timer
 {
@@ -24,6 +26,7 @@ private:
     std::chrono::time_point<clock_> beg_;
 };
 
+#endif
 namespace line2Dup
 {
 /**
@@ -283,7 +286,7 @@ void hysteresisGradient(Mat &magnitude, Mat &quantized_angle,
     }
 }
 
-static void quantizedOrientations(const Mat &src, Mat &magnitude,
+void ColorGradientPyramid::quantizedOrientations(const Mat &src, Mat &magnitude,
                                   Mat &angle, Mat& angle_ori, float threshold)
 {
     Mat smoothed;
@@ -300,6 +303,11 @@ static void quantizedOrientations(const Mat &src, Mat &magnitude,
         phase(sobel_dx, sobel_dy, sobel_ag, true);
         hysteresisGradient(magnitude, angle, sobel_ag, threshold * threshold);
         angle_ori = sobel_ag;
+
+        if(!has_pydown){
+            dx_ = sobel_dx;
+            dy_ = sobel_dy;
+        }
 
     }else{
 
@@ -371,9 +379,12 @@ static void quantizedOrientations(const Mat &src, Mat &magnitude,
         phase(sobel_dx, sobel_dy, sobel_ag, true);
         hysteresisGradient(magnitude, angle, sobel_ag, threshold * threshold);
         angle_ori = sobel_ag;
+
+        if(!has_pydown){
+            dx_ = sobel_dx;
+            dy_ = sobel_dy;
+        }
     }
-
-
 }
 
 ColorGradientPyramid::ColorGradientPyramid(const Mat &_src, const Mat &_mask,
@@ -386,6 +397,7 @@ ColorGradientPyramid::ColorGradientPyramid(const Mat &_src, const Mat &_mask,
       num_features(_num_features),
       strong_threshold(_strong_threshold)
 {
+    has_pydown = false;
     update();
 }
 
@@ -412,7 +424,7 @@ void ColorGradientPyramid::pyrDown()
         resize(mask, next_mask, size, 0.0, 0.0, INTER_NEAREST);
         mask = next_mask;
     }
-
+    has_pydown = true;
     update();
 }
 
@@ -1047,15 +1059,20 @@ Detector::Detector(int num_features, std::vector<int> T, float weak_thresh, floa
 }
 
 std::vector<Match> Detector::match(Mat source, float threshold,
-                                   const std::vector<std::string> &class_ids, const Mat mask) const
+                                   const std::vector<std::string> &class_ids, const Mat mask)
 {
+#ifdef DEBUG_MATCH_TIME
     Timer timer;
+#endif
     std::vector<Match> matches;
 
     // Initialize each ColorGradient with our sources
     std::vector<Ptr<ColorGradientPyramid>> quantizers;
     CV_Assert(mask.empty() || mask.size() == source.size());
     quantizers.push_back(modality->process(source, mask));
+
+    dx_ = quantizers[0]->dx_;
+    dy_ = quantizers[0]->dy_;
 
     // pyramid level -> ColorGradient -> quantization
     LinearMemoryPyramid lm_pyramid(pyramid_levels,
@@ -1089,9 +1106,9 @@ std::vector<Match> Detector::match(Mat source, float threshold,
 
         sizes.push_back(quantized.size());
     }
-
+#ifdef DEBUG_MATCH_TIME
     timer.out("construct response map");
-
+#endif
     if (class_ids.empty())
     {
         // Match all templates
@@ -1114,9 +1131,9 @@ std::vector<Match> Detector::match(Mat source, float threshold,
     std::sort(matches.begin(), matches.end());
     std::vector<Match>::iterator new_end = std::unique(matches.begin(), matches.end());
     matches.erase(new_end, matches.end());
-
+#ifdef DEBUG_MATCH_TIME
     timer.out("templ match");
-
+#endif
     return matches;
 }
 

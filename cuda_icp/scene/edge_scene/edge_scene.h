@@ -20,12 +20,14 @@ struct Scene_edge{
 
     // buffer provided by user, this class only holds pointers,
     // becuase we will pass them to device.
-    void init_Scene_edge_cpu(cv::Mat img, std::vector<Vec2f>& pcd_buffer,
-                             std::vector<Vec2f>& normal_buffer, float max_dist_diff = 4.0f);
+    void init_Scene_edge_cpu(cv::Mat dx, cv::Mat dy, std::vector<Vec2f>& pcd_buffer,
+                             std::vector<Vec2f>& normal_buffer, float max_dist_diff = 4.0f,
+                             float low_thresh = 30, float high_thresh = 60);
 
 #ifdef CUDA_ON
-    void init_Scene_edge_cuda(cv::Mat img, device_vector_holder<Vec2f>& pcd_buffer,
-                              device_vector_holder<Vec2f>& normal_buffer, float max_dist_diff = 4.0f);
+    void init_Scene_edge_cuda(cv::Mat dx, cv::Mat dy, device_vector_holder<Vec2f>& pcd_buffer,
+                              device_vector_holder<Vec2f>& normal_buffer, float max_dist_diff = 4.0f,
+                              float low_thresh = 30, float high_thresh = 60);
 #endif
 
     __device__ __host__

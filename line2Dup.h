@@ -50,7 +50,8 @@ public:
     bool extractTemplate(Template &templ) const;
 
     void pyrDown();
-
+    void quantizedOrientations(const cv::Mat &src, cv::Mat &magnitude,
+                                      cv::Mat &angle, cv::Mat& angle_ori, float threshold);
 public:
     void update();
     /// Candidate feature with a score
@@ -67,6 +68,9 @@ public:
         Feature f;
         float score;
     };
+
+    bool has_pydown = false;
+    cv::Mat dx_, dy_;
 
     cv::Mat src;
     cv::Mat mask;
@@ -153,7 +157,7 @@ public:
 
     std::vector<Match> match(cv::Mat sources, float threshold,
                                                      const std::vector<std::string> &class_ids = std::vector<std::string>(),
-                                                     const cv::Mat masks = cv::Mat()) const;
+                                                     const cv::Mat masks = cv::Mat());
 
     int addTemplate(const cv::Mat sources, const std::string &class_id,
                                     const cv::Mat &object_mask, int num_features = 0);
@@ -183,6 +187,8 @@ public:
     void readClasses(const std::vector<std::string> &class_ids,
                                      const std::string &format = "templates_%s.yml.gz");
     void writeClasses(const std::string &format = "templates_%s.yml.gz") const;
+
+    cv::Mat dx_, dy_; // dx dy recorded for icp
 
 protected:
     cv::Ptr<ColorGradient> modality;

@@ -6,6 +6,8 @@ project(shape_based_matching)
 # debug or release
 SET(CMAKE_BUILD_TYPE "Release")
 
+# add this if want to show match time
+#add_definitions(-DDEBUG_MATCH_TIME)
 
 # arm or x86
 IF(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")

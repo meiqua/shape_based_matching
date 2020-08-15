@@ -38,3 +38,16 @@ public:
 
 extern template class device_vector_holder<Vec2f>;
 #endif
+
+namespace songyuncen_subpixel {
+// https://github.com/songyuncen/EdgesSubPix/blob/master/EdgesSubPix.cpp
+
+    double getAmplitude(cv::Mat &dx, cv::Mat &dy, int i, int j);
+    void getMagNeighbourhood(cv::Mat &dx, cv::Mat &dy, cv::Point &p,
+                             int w, int h, std::vector<double> &mag);
+    void get2ndFacetModelIn3x3(std::vector<double> &mag, std::vector<double> &a);
+    void eigenvals(std::vector<double> &a, double eigval[2], double eigvec[2][2]);
+}
+
+template<class T>
+inline T pow2(const T& in){return in*in;}
