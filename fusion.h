@@ -638,6 +638,107 @@ public:
     }
 };
 
+class Sobel3x1SxySyyNodeWithDxy_16S_16S : public FilterNode {
+public:
+    Sobel3x1SxySyyNodeWithDxy_16S_16S(cv::Mat dx, cv::Mat dy): 
+        FilterNode("sobel3x1WithDxy_sxy_syy", CV_16S, 2, CV_16S, 2, 3, 1){
+            dx_ = dx;
+            dy_ = dy;
+            have_special_headers = true;
+        }
+    void update_simple(int start_r, int start_c, int end_r, int end_c) override {
+        for(int r = start_r; r < end_r; r++){
+            int c = start_c;
+            int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
+            int16_t *parent_buf_ptr_0_ = in_headers[0].ptr<int16_t>(r-1, c);
+            int16_t *parent_buf_ptr_0__ = in_headers[0].ptr<int16_t>(r+1, c);
+
+            int16_t *parent_buf_ptr_1 = in_headers[1].ptr<int16_t>(r, c);
+            int16_t *parent_buf_ptr_1_ = in_headers[1].ptr<int16_t>(r-1, c);
+            int16_t *parent_buf_ptr_1__ = in_headers[1].ptr<int16_t>(r+1, c);
+
+            int16_t *buf_ptr_0 = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
+            int16_t *buf_ptr_1 = out_headers[1].ptr<int16_t>(r - op_row/2, c - op_col/2);
+            for(; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr_0++,
+                parent_buf_ptr_0_++, parent_buf_ptr_0__++, parent_buf_ptr_1++,
+                parent_buf_ptr_1_++, parent_buf_ptr_1__++){
+                // sxy  1 2 1
+                *buf_ptr_0 = *(parent_buf_ptr_0_) +
+                        2*(*parent_buf_ptr_0) + *(parent_buf_ptr_0__);
+
+                // syy  -1 0 1
+                *buf_ptr_1 = -*(parent_buf_ptr_1_) + *(parent_buf_ptr_1__);
+            }
+        }
+        cv::Rect dxy_roi(padded_col, padded_row, out_headers[2].cols, out_headers[2].rows);
+        out_headers[0](dxy_roi).copyTo(out_headers[2]);
+        out_headers[1](dxy_roi).copyTo(out_headers[3]);
+    }
+    void update_simd(int start_r, int start_c, int end_r, int end_c) override {
+        const int simd_step = mipp::N<int16_t>();
+        const mipp::Reg<int16_t> two_int16 = int16_t(2);
+        for(int r = start_r; r < end_r; r++){
+            int c = start_c;
+            int16_t *parent_buf_ptr_0 = in_headers[0].ptr<int16_t>(r, c);
+            int16_t *parent_buf_ptr_0_ = in_headers[0].ptr<int16_t>(r-1, c);
+            int16_t *parent_buf_ptr_0__ = in_headers[0].ptr<int16_t>(r+1, c);
+
+            int16_t *parent_buf_ptr_1 = in_headers[1].ptr<int16_t>(r, c);
+            int16_t *parent_buf_ptr_1_ = in_headers[1].ptr<int16_t>(r-1, c);
+            int16_t *parent_buf_ptr_1__ = in_headers[1].ptr<int16_t>(r+1, c);
+
+            int16_t *buf_ptr_0 = out_headers[0].ptr<int16_t>(r - op_row/2, c - op_col/2);
+            int16_t *buf_ptr_1 = out_headers[1].ptr<int16_t>(r - op_row/2, c - op_col/2);
+            for(; c <= end_c - simd_step; c+=simd_step, buf_ptr_0+=simd_step, buf_ptr_1+=simd_step,
+                parent_buf_ptr_0+=simd_step, parent_buf_ptr_0_+=simd_step, parent_buf_ptr_0__+=simd_step,
+                parent_buf_ptr_1+=simd_step, parent_buf_ptr_1_+=simd_step, parent_buf_ptr_1__+=simd_step){
+                {
+                    mipp::Reg<int16_t> p0(parent_buf_ptr_0_);
+                    mipp::Reg<int16_t> p1(parent_buf_ptr_0);
+                    mipp::Reg<int16_t> p2(parent_buf_ptr_0__);
+
+                    mipp::Reg<int16_t> sxy = p2 + p0 + (p1 * two_int16);
+                    sxy.store(buf_ptr_0);
+                }
+                {
+                    mipp::Reg<int16_t> p0(parent_buf_ptr_1_);
+                    mipp::Reg<int16_t> p2(parent_buf_ptr_1__);
+
+                    mipp::Reg<int16_t> syy = p2 - p0;
+                    syy.store(buf_ptr_1);
+                }
+            }
+            for(; c < end_c; c++, buf_ptr_0++, buf_ptr_1++, parent_buf_ptr_0++,
+                parent_buf_ptr_0_++, parent_buf_ptr_0__++, parent_buf_ptr_1++,
+                parent_buf_ptr_1_++, parent_buf_ptr_1__++){
+                // sxy  1 2 1
+                *buf_ptr_0 = *(parent_buf_ptr_0_) +
+                        2*(*parent_buf_ptr_0) + *(parent_buf_ptr_0__);
+
+                // syy  -1 0 1
+                *buf_ptr_1 = -*(parent_buf_ptr_1_) + *(parent_buf_ptr_1__);
+            }
+        }
+        cv::Rect dxy_roi(padded_col, padded_row, out_headers[2].cols, out_headers[2].rows);
+        out_headers[0](dxy_roi).copyTo(out_headers[2]);
+        out_headers[1](dxy_roi).copyTo(out_headers[3]);
+    }
+    std::shared_ptr<FilterNode> clone() const override {
+        std::shared_ptr<FilterNode> node_new = std::make_shared<Sobel3x1SxySyyNodeWithDxy_16S_16S>(dx_, dy_);
+        node_new->padded_row = padded_row;
+        node_new->padded_col = padded_col;
+        node_new->which_buffer = which_buffer;
+        return node_new;
+    }
+    void link_special_header(const cv::Rect &cur_roi) override {
+        assert(out_headers.size() == 2 && "sanity check");
+        out_headers.push_back(dx_(cur_roi));
+        out_headers.push_back(dy_(cur_roi));
+    }
+
+    cv::Mat dx_, dy_;
+};
+
 class MagSqure1x1Node_16S_32S : public FilterNode {
 public:
     MagSqure1x1Node_16S_32S() : FilterNode("mag_squre", CV_16S, 2, CV_32S, 1, 1, 1) {}

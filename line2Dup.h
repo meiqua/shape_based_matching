@@ -268,7 +268,7 @@ public:
 
     std::vector<Match> match(cv::Mat sources, float threshold,
                                                      const std::vector<std::string> &class_ids = std::vector<std::string>(),
-                                                     const cv::Mat masks = cv::Mat()) const;
+                                                     const cv::Mat masks = cv::Mat());
     int addTemplate(const cv::Mat sources, const std::string &class_id,
                                     const cv::Mat &object_mask, int num_features = 0);
 
@@ -298,6 +298,8 @@ public:
                                      const std::string &format = "templates_%s.yml.gz");
     void writeClasses(const std::string &format = "templates_%s.yml.gz") const;
 
+    bool set_produce_dxy = false;
+    cv::Mat dx_, dy_;
 protected:
     cv::Ptr<ColorGradient> modality;
     int pyramid_levels;

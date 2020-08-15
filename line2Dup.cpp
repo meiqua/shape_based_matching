@@ -1046,8 +1046,11 @@ static int least_mul_of_Ts(const std::vector<int>& T_at_level){
     return cur_res;
 }
 
-std::vector<Match> Detector::match(Mat source, float threshold, const std::vector<string> &class_ids, const Mat mask) const
+std::vector<Match> Detector::match(Mat source, float threshold, const std::vector<string> &class_ids, const Mat mask)
 {
+    dx_ = cv::Mat();
+    dy_ = cv::Mat();
+
     Timer timer;
     std::vector<Match> matches;
 
@@ -1102,7 +1105,15 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Gauss5x1withPyrdownNode_32S_16S_4bit_smaller>(
                                           pyrdown_src, need_pyr));
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
-        manager.get_nodes().push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
+
+        if(set_produce_dxy && cur_l == 0){
+            dx_ = cv::Mat(src.size(), CV_16S, cv::Scalar(0));
+            dy_ = cv::Mat(src.size(), CV_16S, cv::Scalar(0));
+            manager.get_nodes().push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNodeWithDxy_16S_16S>(dx_, dy_));
+        }else{
+            manager.get_nodes().push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
+        }
+        
         manager.get_nodes().push_back(std::make_shared<simple_fusion::MagPhaseQuant1x1Node_16S_8U>(mag_thresh_l2));
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Hist3x3Node_8U_8U>());
         manager.get_nodes().push_back(std::make_shared<simple_fusion::Spread1xnNode_8U_8U>(cur_T + 1));

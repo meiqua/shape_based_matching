@@ -6,7 +6,7 @@
 using namespace std;
 using namespace cv;
 
-static std::string prefix = "/home/rfjiang/shape_based_matching/test/";
+static std::string prefix = "/home/meiqua/shape_based_matching/test/";
 
 // NMS, got from cv::dnn so we don't need opencv contrib
 // just collapse it
@@ -257,7 +257,7 @@ void angle_test(string mode = "test"){
         Mat test_img = imread(prefix+"case1/test.png");
         assert(!test_img.empty() && "check your img path");
 
-        int padding = 1500;
+        int padding = 500;
         cv::Mat padded_img = cv::Mat(test_img.rows + 2*padding,
                                      test_img.cols + 2*padding, test_img.type(), cv::Scalar::all(0));
         test_img.copyTo(padded_img(Rect(padding, padding, test_img.cols, test_img.rows)));
@@ -267,8 +267,15 @@ void angle_test(string mode = "test"){
         std::cout << "test img size: " << img.rows * img.cols << std::endl << std::endl;
 
         Timer timer;
+        detector.set_produce_dxy = true; // produce dxy, for icp purpose maybe
         std::vector<line2Dup::Match> matches = detector.match(img, 90, ids);
         timer.out("match total time");
+
+        // test dx, dy;
+        cv::Mat canny_edge;
+        cv::Canny(detector.dx_, detector.dy_, canny_edge, 30, 60);
+        cv::imshow("canny edge", canny_edge);
+        // cv::waitKey();
 
         if(img.channels() == 1) cvtColor(img, img, CV_GRAY2BGR);
 
