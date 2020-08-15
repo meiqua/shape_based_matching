@@ -3,7 +3,7 @@
 void Scene_edge::init_Scene_edge_cuda(cv::Mat dx, cv::Mat dy, KDTree_cuda& kdtree, float max_dist_diff,
                                       float low_thresh, float high_thresh)
 {
-    KDTree_cpu& cpu_tree;
+    KDTree_cpu cpu_tree;
     init_Scene_edge_cpu(dx, dy, cpu_tree, max_dist_diff, low_thresh, high_thresh);
 
     kdtree.pcd_buffer.__malloc(cpu_tree.pcd_buffer.size());
