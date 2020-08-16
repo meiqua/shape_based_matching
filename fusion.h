@@ -1288,7 +1288,7 @@ public:
         node_new->which_buffer = which_buffer;
         return node_new;
     }
-    const uint8_t scores[2] = {4, 1};
+    const uint8_t scores[2] = {4, 3};
     const uint8_t hit_mask[8] = { 1,   2, 4,  8,  16, 32, 64,  128};
     const uint8_t side_mask[8] = {130, 5, 10, 20, 40, 80, 160, 65};
 };
