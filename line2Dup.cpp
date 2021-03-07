@@ -1097,7 +1097,7 @@ std::vector<Match> Detector::match(Mat source, float threshold, const std::vecto
 
         if(need_pyr) pyrdown_src = cv::Mat(imgRows/2, imgCols/2, CV_8U);
 
-        simple_fusion::ProcessManager manager(tileRows, tileCols);
+        simple_fusion::ProcessManager manager(fusion_buffers, tileRows, tileCols);
         manager.set_num_threads(num_threads_);
         if(src.channels() == 3)
             manager.get_nodes().push_back(std::make_shared<simple_fusion::BGR2GRAY_8UC3_8U>());

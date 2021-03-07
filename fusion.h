@@ -12,6 +12,9 @@
 
 #include "mipp.h"  // for SIMD in different platforms
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 namespace simple_fusion {
 
 #define INVALID 63 // > 8 && < 128
@@ -1394,9 +1397,17 @@ public:
 
 class ProcessManager {
 public:
-    ProcessManager(int tileRows = 32, int tileCols = 256): tileRows_(tileRows), tileCols_(tileCols) {}
+    ProcessManager(std::vector<std::vector<char>>& fusion_buffers, int tileRows = 32, int tileCols = 256): 
+        tileRows_(tileRows), tileCols_(tileCols),  fusion_buffers_(fusion_buffers){}
     void set_num_threads(int t){num_threads_ = t;}
     std::vector<std::shared_ptr<FilterNode>>& get_nodes(){return nodes_;}
+
+    // to avoid wasting time in applying and destroying buffers
+    // buffers will be the largest tile we use during all process
+    // we make want to clear them to start from begin again 
+    void clear_buffers(){
+        fusion_buffers_.clear();
+    }
 
     void arrange(int outRows, int outCols){
         if(nodes_.empty()){
@@ -1447,6 +1458,24 @@ public:
                 int footprint = tile_size * type_size * node->input_num + node->input_num * 128; // with some alignments
                 if(footprint > maxMemoFootprint_) maxMemoFootprint_ = footprint;
             }
+            // make footprint 64byte aligned to cache line to avoid false sharing in multithread, hopefully
+            maxMemoFootprint_ = (maxMemoFootprint_ + 63) / 64 * 64;  
+            // arrange memory for all threads
+#ifdef _OPENMP
+            if(fusion_buffers_.size() < num_threads_){
+                fusion_buffers_.resize(num_threads_);
+            }
+#else
+            // we use one thread if no openmp
+            if(fusion_buffers_.size() < 1){
+                fusion_buffers_.resize(1);
+            }            
+#endif
+            for(auto& buffer: fusion_buffers_){
+                if(buffer.size() < maxMemoFootprint_*2){
+                    buffer.resize(maxMemoFootprint_*2);
+                }
+            }
         }
     }
 
@@ -1487,11 +1516,16 @@ public:
 #ifdef _OPENMP
 #pragma omp parallel num_threads(num_threads_)
     {
-#endif
     // prepare private buffer here
+    int tid = omp_get_thread_num();
     std::vector<char*> filter_buffer(2);
-    char* buffer_0 = new char[maxMemoFootprint_];
-    char* buffer_1 = new char[maxMemoFootprint_];
+    char* buffer_0 = new (fusion_buffers_[tid].data()) char[maxMemoFootprint_];
+    char* buffer_1 = new (fusion_buffers_[tid].data() + maxMemoFootprint_) char[maxMemoFootprint_];
+#else
+    std::vector<char*> filter_buffer(2);
+    char* buffer_0 = new (fusion_buffers_[0].data()) char[maxMemoFootprint_];
+    char* buffer_1 = new (fusion_buffers_[0].data() + maxMemoFootprint_) char[maxMemoFootprint_];    
+#endif
     filter_buffer[0] = buffer_0 + aligned256_after_n_char(buffer_0);
     filter_buffer[1] = buffer_1 + aligned256_after_n_char(buffer_1);
 
@@ -1577,8 +1611,6 @@ public:
         // update one by one
         for(int i=0; i<nodes_private.size(); i++) nodes_private[i]->update();
     }
-    delete[] buffer_0;
-    delete[] buffer_1;
 #ifdef _OPENMP
     }
 #endif
@@ -1598,6 +1630,7 @@ public:
         return is_valid;
     }
 
+    std::vector<std::vector<char>>& fusion_buffers_;
     std::vector<cv::Rect> update_rois_;
     std::vector<std::shared_ptr<FilterNode>> nodes_;
     int tileRows_, tileCols_;

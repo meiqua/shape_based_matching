@@ -47,7 +47,8 @@ void gauss_test()
     Mat mag_fusion(img.size(), CV_16S, cv::Scalar(0));
     out_v.push_back(mag_fusion);
 
-    simple_fusion::ProcessManager manager;
+    std::vector<std::vector<char>> fusion_buffers;
+    simple_fusion::ProcessManager manager(fusion_buffers);
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss1x5Node_8U_32S_4bit_larger>());
     manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss5x1Node_32S_16S_4bit_smaller>());
@@ -104,7 +105,9 @@ void gauss_pyrdown_test()
     out_v.push_back(mag_fusion);
 
     cv::Mat pyr_down_img(img.rows/2, img.cols/2, CV_8U, cv::Scalar(0));
-    simple_fusion::ProcessManager manager;
+
+    std::vector<std::vector<char>> fusion_buffers;
+    simple_fusion::ProcessManager manager(fusion_buffers);
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss1x5Node_8U_32S_4bit_larger>());
     manager.nodes_.push_back(std::make_shared<simple_fusion::Gauss5x1withPyrdownNode_32S_16S_4bit_smaller>(
@@ -169,8 +172,8 @@ void sobel_mag_test()
     Mat fusion_sobel_dy(img.size(), CV_16S, cv::Scalar(0));
     out_v.push_back(fusion_sobel_dx);
     out_v.push_back(fusion_sobel_dy);
-
-    simple_fusion::ProcessManager manager(16, 128);
+    std::vector<std::vector<char>> fusion_buffers;
+    simple_fusion::ProcessManager manager(fusion_buffers, 16, 128);
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
@@ -292,8 +295,8 @@ void sobel_mag_phase_quant_test()
     std::vector<cv::Mat> out_v;
     Mat fusion_quant(img.size(), CV_8U, cv::Scalar(0));
     out_v.push_back(fusion_quant);
-
-    simple_fusion::ProcessManager manager(16, 128);
+    std::vector<std::vector<char>> fusion_buffers;
+    simple_fusion::ProcessManager manager(fusion_buffers, 16, 128);
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
@@ -387,8 +390,8 @@ void sobel_mag_phase_quant_shift_test()
     std::vector<cv::Mat> out_v;
     Mat fusion_quant(img.size(), CV_8U, cv::Scalar(0));
     out_v.push_back(fusion_quant);
-
-    simple_fusion::ProcessManager manager(16, 128);
+    std::vector<std::vector<char>> fusion_buffers;
+    simple_fusion::ProcessManager manager(fusion_buffers, 16, 128);
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
@@ -523,8 +526,8 @@ void sobel_mag_phase_quant_hist_test()
     std::vector<cv::Mat> out_v;
     Mat fusion_quant(img.size(), CV_8U, cv::Scalar(0));
     out_v.push_back(fusion_quant);
-
-    simple_fusion::ProcessManager manager(16, 128);
+    std::vector<std::vector<char>> fusion_buffers;
+    simple_fusion::ProcessManager manager(fusion_buffers, 16, 128);
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
@@ -675,7 +678,8 @@ void sobel_mag_phase_quant_hist_spread_test()
     Mat fusion_quant(img.size(), CV_8U, cv::Scalar(0));
     out_v.push_back(fusion_quant);
 
-    simple_fusion::ProcessManager manager(16, 128);
+    std::vector<std::vector<char>> fusion_buffers;
+    simple_fusion::ProcessManager manager(fusion_buffers, 16, 128);
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());
@@ -858,8 +862,8 @@ void sobel_mag_phase_quant_hist_spread_response_test()
         Mat fusion_quant(img.size(), CV_8U, cv::Scalar(0));
         out_v.push_back(fusion_quant);
     }
-
-    simple_fusion::ProcessManager manager(16, 128);
+    std::vector<std::vector<char>> fusion_buffers;
+    simple_fusion::ProcessManager manager(fusion_buffers, 16, 128);
     manager.nodes_.clear();
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel1x3SxxSyxNode_16S_16S>());
     manager.nodes_.push_back(std::make_shared<simple_fusion::Sobel3x1SxySyyNode_16S_16S>());

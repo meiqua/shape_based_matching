@@ -300,6 +300,7 @@ public:
 
     bool set_produce_dxy = false;
     cv::Mat dx_, dy_;
+    std::vector<std::vector<char>> fusion_buffers;
 protected:
     cv::Ptr<ColorGradient> modality;
     int pyramid_levels;
