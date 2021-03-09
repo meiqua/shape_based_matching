@@ -9,13 +9,30 @@
 #include <assert.h>
 #include <chrono>
 #include <stdlib.h>
-
+#include <thread>
+#include <sstream>
 #include "mipp.h"  // for SIMD in different platforms
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 namespace simple_fusion {
+
+class SimpleTimer
+{
+public:
+    SimpleTimer() : beg_(clock_::now()) {}
+    void reset() { beg_ = clock_::now(); }
+    double elapsed() const
+    {
+        return std::chrono::duration_cast<second_>(clock_::now() - beg_).count();
+    }
+
+private:
+    typedef std::chrono::high_resolution_clock clock_;
+    typedef std::chrono::duration<double, std::ratio<1>> second_;
+    std::chrono::time_point<clock_> beg_;
+};
 
 #define INVALID 63 // > 8 && < 128
 
@@ -58,6 +75,7 @@ public:
 
     FilterNode() = delete; // delete default to force user to provide filter infos
 
+    double elapsed_time = 0;
     std::string op_name;
 
     int input_type = CV_16U;
@@ -86,10 +104,12 @@ public:
     virtual void update_simple(int start_r, int start_c, int end_r, int end_c) = 0;
     virtual void update_simd(int start_r, int start_c, int end_r, int end_c) = 0;
     void update(){
+        SimpleTimer timer;
         if(use_simd)
             update_simd(op_row/2, op_col/2, in_headers[0].rows - op_row/2, in_headers[0].cols - op_col/2);
         else
             update_simple(op_row/2, op_col/2, in_headers[0].rows - op_row/2, in_headers[0].cols - op_col/2);
+        elapsed_time += timer.elapsed();
     }
 
     virtual std::shared_ptr<FilterNode> clone() const = 0;
@@ -1513,6 +1533,7 @@ public:
     assert(nodes_.back()->output_num == out_v.size() &&
            nodes_.back()->output_type == out_v[0].type() && "last node is not compatible");
 
+std::string omp_profile_str;
 #ifdef _OPENMP
 #pragma omp parallel num_threads(num_threads_)
     {
@@ -1611,9 +1632,28 @@ public:
         // update one by one
         for(int i=0; i<nodes_private.size(); i++) nodes_private[i]->update();
     }
+
+    std::stringstream ss;
+    ss << "----------thread " << std::this_thread::get_id() << "---------\n";
+    for(auto& n: nodes_private){
+        ss << n->op_name << ": " << n->elapsed_time * 1000 << "ms\n";
+    }
+    ss << "----------" << "------------------------" << "-------\n\n";
+
+#ifdef _OPENMP
+#pragma omp critical
+    {
+#endif
+        omp_profile_str += ss.str();
 #ifdef _OPENMP
     }
 #endif
+
+#ifdef _OPENMP
+    }
+#endif
+
+    std::cout << omp_profile_str << std::endl;
 
     }
     bool check_if_nodes_valid(){
